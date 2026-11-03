@@ -66,3 +66,54 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+
+## Core LaTeX auxiliary and log files
+*.aux
+*.fls
+*.glo
+*.idx
+*.log
+*.toc
+*.ist
+*.out
+
+## Bibliography auxiliary files (BibTeX / BibLaTeX / Biber)
+*.bbl
+*.bcf
+*.blg
+*-blx.aux
+*-blx.bib
+*.run.xml
+
+## Build tool bundles and engine auxiliary files (e.g., latexmk)
+*.fdb_latexmk
+*.synctex
+*.synctex(busy)
+*.synctex.gz
+*.synctex.gz(busy)
+*.pdfsync
+
+## Intermediate documents and formats
+*.dvi
+*.xdv
+*-converted-to.*
+
+## Additional lists and package-specific files
+*.lof
+*.lot
+*.lol
+*.nav
+*.snm
+*.vrb
+*.maf
+*.mtc
+*.mtc1
+
+## Output directory (if you configure your editor to build into a separate folder)
+# build/
+# out/
+
+## Final PDF document
+# Uncomment the line below if you generate your PDF locally and do not want to track it
+# *.pdf

@@ -1,0 +1,289 @@
+\documentclass[11pt,a4paper]{article}
+
+% Report template for the truncated SHA-2 assignment.
+% Replace each gray italic prompt before you submit.
+% Build the table of contents with two passes, or with latexmk:
+%   latexmk -pdf report.tex
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{microtype}
+\usepackage{setspace}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\onehalfspacing
+\setlist[itemize]{topsep=0.3em,itemsep=0.15em}
+\setlist[enumerate]{topsep=0.3em,itemsep=0.2em}
+
+% Edit these four lines.
+\newcommand{\studentname}{Your Name}
+\newcommand{\studentid}{Student ID}
+\newcommand{\coursename}{Data Security}
+\newcommand{\reporttitle}{How Secure Is a Truncated SHA-2 Digest?}
+
+\newcommand{\Hn}{H_{n}}
+\newcommand{\prefix}{\operatorname{prefix}}
+\newcommand{\prompt}[1]{%
+  \par\smallskip
+  {\color{black!45}\itshape #1\par}%
+  \smallskip
+}
+
+\hypersetup{
+  pdftitle={\reporttitle},
+  pdfauthor={\studentname}
+}
+
+\begin{document}
+% Alphabetic anchors keep the title page from sharing page.1 with the body.
+\pagenumbering{alph}
+
+\begin{titlepage}
+  \centering
+  \thispagestyle{empty}
+  \vspace*{1.6cm}
+  {\LARGE\bfseries \reporttitle\par}
+  \vspace{0.8cm}
+  {\Large Course report\par}
+  \vspace{1.6cm}
+  {\large Truncated SHA-256, birthday collisions,\\
+   and a signature that checks only a prefix\par}
+  \vfill
+  \begin{tabular}{@{}>{\bfseries}ll@{}}
+    Student  & \studentname \\
+    ID       & \studentid \\
+    Course   & \coursename \\
+    Date     & \today \\
+  \end{tabular}
+  \vfill
+  {\small Problem statement: \texttt{assignment/problem/problem.tex}\par}
+  \vspace*{1cm}
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+\section{Introduction}
+\prompt{%
+  State the question in your own words.
+  A signature that verifies \(\Hn(x) = \prefix_{n}(H(x))\) accepts every
+  message with that same \(n\)-bit prefix.
+  Say which \(n\) you studied and what you concluded about the signature.%
+}
+
+\section{Background}
+
+\subsection{SHA-2}
+\prompt{%
+  Identify the member of the family you hashed (SHA-256 unless you changed
+  it), its output length, and the properties the full function is designed
+  to provide: collision resistance and preimage resistance.
+  Name where a digest of this kind is used (signatures, TLS, blockchains)
+  only as far as it matters for the attack.%
+}
+
+\subsection{Truncation and significant bits}
+\prompt{%
+  Define \(\Hn(x) = \prefix_{n}(H(x))\) and state that the prefix is the
+  most significant \(n\) bits, the leading bits when the digest is written
+  in hex.
+  A short example, even one byte, is enough to fix MSB and LSB.%
+}
+
+\subsection{Birthday bound}
+\prompt{%
+  Give the collision condition \(x \neq x'\) and \(\Hn(x) = \Hn(x')\),
+  and the generic cost \(O(2^{n/2})\).
+  Record the lecture's reading of that cost: truncation leaves at most
+  \(n/2\) bits of collision security, short prefixes such as \(n = 32\)
+  and \(n = 64\) are practical, and \(n \ge 128\) is the example of a
+  length that is still large.%
+}
+
+\subsection{The signature on a prefix}
+\prompt{%
+  Say what the verifier computes and what it compares.
+  Then say what follows when two messages share a prefix:
+  a signature on one verifies on the other.%
+}
+
+\section{Alice's investigation}
+\prompt{%
+  Summarize the poisoned-message setting you are replaying.
+  Two documents that a reader accepts as different messages share one
+  digest, so the signature transfers.
+  Cite Daum and Lucks, and point at the published MD5 pair only as the
+  historical case.
+  Keep this section to the analogy.
+  The measurements belong in Section~\ref{sec:results}.%
+}
+
+\section{Collision search}
+\label{sec:search}
+\prompt{%
+  Open with the search problem: sample inputs until two of them share an
+  \(n\)-bit prefix.
+  Then one subsection per approach you actually ran.
+  Delete the subsections you did not use, and add one for each further
+  idea (distinguished points, a different cycle finder, a GPU search,
+  and so on).%
+}
+
+\subsection{Hash table}
+\prompt{%
+  Describe the key you store, the value you store beside it, and the test
+  that declares a collision.
+  Give the memory per entry and the \(n\) at which the table stopped
+  fitting.
+  This is the memory-heavy end of the tradeoff.%
+}
+
+\subsection{Floyd's cycle-finding algorithm}
+\prompt{%
+  Describe the function you iterate, the two pointers, and the extra work
+  you do after a meeting point to recover a colliding pair.
+  State the memory, which should stay essentially constant, and the number
+  of hashes relative to \(2^{n/2}\).%
+}
+
+\subsection{Time--memory tradeoff}
+\prompt{%
+  Put the two previous methods on one scale.
+  If you used distinguished points, chains, or another intermediate
+  scheme, specify the parameter that moves memory in one direction and
+  hashing work in the other, and report the settings you tried.%
+}
+
+\subsection{Parallel search}
+\prompt{%
+  Describe how the search was split (processes, threads, or machines),
+  how a worker reported a hit, and how the speed compared with one worker.
+  Note any duplicated work.%
+}
+
+\section{Experiments}
+\label{sec:results}
+
+\subsection{Setup}
+\prompt{%
+  Machine, core count, RAM, language, and hash implementation.
+  State how you timed a run and how you measured memory.
+  Fix the input format (counter, random block, chosen prefix plus a
+  free block) so a reader can reproduce a pair.%
+}
+
+\subsection{Results}
+\prompt{%
+  Fill Table~\ref{tab:results}.
+  One row per \((n, \text{method})\) you finished.
+  The largest \(n\) is the bottom line of the assignment; start at 32
+  and keep every successful length, including the ones that were easy.%
+}
+
+\begin{table}[ht]
+  \centering
+  \caption{Collision searches.
+           Replace the dashes.
+           ``Hashes'' is the number of SHA-256 evaluations.}
+  \label{tab:results}
+  \begin{tabular}{@{}clrrll@{}}
+    \toprule
+    \(n\) & Method & Hashes & Time & Memory & Prefix \\
+    \midrule
+    32 & hash table & --- & --- & --- & \texttt{--------} \\
+    32 & Floyd      & --- & --- & --- & \texttt{--------} \\
+    64 &            & --- & --- & --- & \texttt{----------------} \\
+    \midrule
+    \multicolumn{6}{@{}l}{%
+      Largest \(n\) reached: \rule{2.2cm}{0.4pt}\quad
+      method: \rule{3.2cm}{0.4pt}} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{What limited the next prefix length}
+\prompt{%
+  For the smallest \(n\) you did not finish, say whether you ran out of
+  memory, time, or both, and which method came closest.
+  Compare that wall with \(2^{n/2}\).%
+}
+
+\section{Meaningful messages}
+\prompt{%
+  Leave this section until the lecture that builds a collision into a
+  document a person will actually read.
+  Then describe the two messages, where the free bytes sit, and why a
+  reader sees two different texts while \(\Hn\) stays the same.
+  Attach the files or quote only enough of them to identify the pair.
+  If that lecture has not happened yet, write one sentence saying so
+  and point ahead to the conclusion you can already draw from
+  Section~\ref{sec:results}.%
+}
+
+\section{Security conclusion}
+\prompt{%
+  Answer the mission directly.
+  For each \(n\) you broke, the signature on \(\Hn\) does not separate
+  the two inputs you found.
+  For the lengths you did not break, give the birthday cost and say
+  whether that cost is still a practical attack or only a theoretical one.
+  Use the lecture's markers: \(n = 32\) and \(n = 64\) are the short
+  prefixes, and \(n \ge 128\) is the example of a prefix that remains
+  large.
+  Close with why the birthday bound, rather than a dedicated SHA-256
+  break, is the attack that decides this question.%
+}
+
+\section{Conclusion}
+\prompt{%
+  Three or four sentences.
+  Largest \(n\), the method that reached it, the memory--time choice
+  that mattered, and the consequence for the signature.
+  State the meaningful-message attack as done, or as waiting on the
+  later lecture.%
+}
+
+\appendix
+\section{Colliding inputs}
+\label{app:pairs}
+\prompt{%
+  For every row of Table~\ref{tab:results}, list the two inputs and the
+  shared prefix.
+  Prefer a path to a file in the repository over a paste of long inputs.%
+}
+
+\begin{verbatim}
+n = 32
+method:
+x  =
+x' =
+Hn =
+\end{verbatim}
+
+\addcontentsline{toc}{section}{References}
+\begin{thebibliography}{9}
+
+\bibitem{daum-lucks}
+Magnus Daum and Stefan Lucks.
+\newblock Hash Collisions (The Poisoned Message Attack).
+\newblock \url{https://www.sos.cs.ru.nl/applications/courses/security2015/md5collisions/index.html}.
+
+\bibitem{fips180-4}
+National Institute of Standards and Technology.
+\newblock \emph{Secure Hash Standard (SHS)}, FIPS PUB 180-4, 2015.
+
+% Add a bibitem for each paper or tool you actually used, for example
+% the hash library and any write-up of Floyd's algorithm you followed.
+
+\end{thebibliography}
+
+\end{document}
