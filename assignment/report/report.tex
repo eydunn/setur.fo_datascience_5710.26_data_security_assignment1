@@ -16,7 +16,18 @@
 \usepackage{array}
 \usepackage{enumitem}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
 \usepackage[hidelinks]{hyperref}
+
+\tikzset{
+  box/.style={draw, thick, font=\ttfamily, inner sep=3.5pt, minimum height=7.5mm},
+  kept/.style={box, fill=blue!12},
+  hit/.style={box, fill=orange!22},
+  plain/.style={box, fill=black!4},
+  flow/.style={-{Stealth[length=2.2mm]}, thick},
+  tag/.style={font=\small, align=center}
+}
 
 \onehalfspacing
 \setlist[itemize]{topsep=0.3em,itemsep=0.15em}
@@ -268,6 +279,120 @@ x  =
 x' =
 Hn =
 \end{verbatim}
+
+\section{Diagrams of the three searches}
+\label{app:diagrams}
+
+Each arrow is one SHA-256 evaluation.
+The next value is the leading bits of that digest, written here in hex.
+Blue is a value placed in a table.
+Orange marks the two inputs of a collision.
+The pictures use a 16-bit prefix so the hex fits on the page.
+At \(n = 32\) the same pictures keep the first eight hex digits.
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}
+    \node[tag, anchor=west] at (0,1.15) {SHA-256(\texttt{251})};
+    \node[kept] (keep) at (4.7,1.15) {c75d};
+    \node[plain, anchor=west] (drop) at (5.85,1.15) {3f1f\ldots};
+    \node[tag, below=1mm of keep] {kept};
+    \node[tag, below=1mm of drop] {dropped};
+
+    \node[tag, anchor=west] (h1) at (0,-0.55) {leading bits};
+    \node[tag, anchor=west] (h2) at (3.15,-0.55) {first message};
+
+    \node[kept, anchor=west] (p0) at (0,-1.45) {5fec};
+    \node[plain, anchor=west] (m0) at (3.15,-1.45) {0};
+    \node[kept, anchor=west] (p1) at (0,-2.45) {6b86};
+    \node[plain, anchor=west] (m1) at (3.15,-2.45) {1};
+    \node[hit, anchor=west] (pc) at (0,-3.45) {c75d};
+    \node[plain, anchor=west] (m157) at (3.15,-3.45) {157};
+
+    \node[hit] (m251) at (0.55,-4.75) {251};
+    \draw[flow] (m251.north) -- node[tag, right] {same leading bits} (pc.south);
+    \node[tag, below=1mm of m251] {collision};
+  \end{tikzpicture}
+  \caption{Hash table, with real SHA-256 prefixes of the decimal counters.
+           Every leading prefix is stored with the first message that
+           produced it.
+           \texttt{0} and \texttt{1} have new prefixes.
+           \texttt{157} is stored under \texttt{c75d}.
+           \texttt{251} produces the same leading digits, so the two
+           messages collide.
+           The digits after \texttt{c75d} differ and are not stored.}
+  \label{fig:hashtable}
+\end{figure}
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}
+    \node[plain] (s0) at (0,0) {0};
+    \node[plain] (s1) at (1.8,0) {1};
+    \node[hit] (s2) at (3.6,0) {2};
+    \node[plain] (s3) at (5.7,0.85) {3};
+    \node[plain] (s4) at (7.6,0.85) {4};
+    \node[hit] (s5) at (7.6,-0.95) {5};
+
+    \draw[flow] (s0) -- (s1);
+    \draw[flow] (s1) -- (s2);
+    \draw[flow] (s2) -- (s3);
+    \draw[flow] (s3) -- (s4);
+    \draw[flow] (s4) -- (s5);
+    \draw[flow] (s5) to[out=180,in=-70] (s3);
+
+    \node[tag, above=1mm of s3] {entrance};
+    \node[tag, below=1mm of s2] {one step to 3};
+    \node[tag, below=1mm of s5] {one step to 3};
+  \end{tikzpicture}
+  \caption{Floyd's algorithm on a short stand-in chain.
+           Each arrow hashes the state and keeps the leading bits;
+           those bits are the next state.
+           The tortoise follows one arrow at a time and the hare follows
+           two, until they meet on the cycle and walk back to the entrance
+           \texttt{3}.
+           States \texttt{2} and \texttt{5} both step onto \texttt{3},
+           so they are the collision.
+           Only the two pointers are kept.
+           No table of states is written.}
+  \label{fig:floyd}
+\end{figure}
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}
+    \node[hit] (a) at (0,2.05) {c251};
+    \node[hit] (b) at (2.5,2.05) {de75};
+    \node[plain] (m) at (1.25,0) {fbfe};
+    \node[plain] (c) at (4.15,0) {cc55};
+    \node[plain] (d) at (7.05,0) {cc9b};
+    \node[kept] (e) at (10.05,0) {fca0};
+
+    \draw[flow] (a) -- (m);
+    \draw[flow] (b) -- (m);
+    \draw[flow] (m) -- (c);
+    \draw[flow] (c) -- (d);
+    \draw[flow] (d) -- (e);
+
+    \node[tag, below=1mm of m] {ends in \texttt{e}};
+    \node[tag, below=1mm of c] {ends in \texttt{5}};
+    \node[tag, below=1mm of d] {ends in \texttt{b}};
+    \node[tag, below=1mm of e] {ends in \texttt{0}, stored};
+  \end{tikzpicture}
+  \caption{Distinguished points on a real SHA-256 chain, with a 16-bit
+           prefix.
+           \texttt{c251} and \texttt{de75} both hash to the leading bits
+           \texttt{fbfe}.
+           That pair is the collision.
+           The chain continues, and a state is stored only when it ends
+           in the hex digit \texttt{0}, here the lowest four bits
+           \texttt{0000}.
+           \texttt{fbfe}, \texttt{cc55}, and \texttt{cc9b} fail that test.
+           The chain stops at \texttt{fca0}, which is the single table entry.
+           A second chain that ends at the same \texttt{fca0} is walked
+           again to recover \texttt{c251} and \texttt{de75}.}
+  \label{fig:distinguished}
+\end{figure}
 
 \addcontentsline{toc}{section}{References}
 \begin{thebibliography}{9}
