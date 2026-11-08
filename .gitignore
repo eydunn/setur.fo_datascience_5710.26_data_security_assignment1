@@ -1,2 +1,123 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Linker files
+*.ilk
+
+# Debugger Files
+*.pdb
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+*.so.*
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Build directories
+build/
+Build/
+build-*/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+*.swp
+
+# vcpkg
+vcpkg_installed/
+
+# debug information files
+*.dwo
+
+# test output & cache
+Testing/
+.cache/
+
+
+## Core LaTeX auxiliary and log files
+*.aux
+*.fls
+*.glo
+*.idx
+*.log
+*.toc
+*.ist
+*.out
+
+## Bibliography auxiliary files (BibTeX / BibLaTeX / Biber)
+*.bbl
+*.bcf
+*.blg
+*-blx.aux
+*-blx.bib
+*.run.xml
+
+## Build tool bundles and engine auxiliary files (e.g., latexmk)
+*.fdb_latexmk
+*.synctex
+*.synctex(busy)
+*.synctex.gz
+*.synctex.gz(busy)
+*.pdfsync
+
+## Intermediate documents and formats
+*.dvi
+*.xdv
+*-converted-to.*
+
+## Additional lists and package-specific files
+*.lof
+*.lot
+*.lol
+*.nav
+*.snm
+*.vrb
+*.maf
+*.mtc
+*.mtc1
+
+## Output directory (if you configure your editor to build into a separate folder)
+# build/
+# out/
+
+## Final PDF document
+# Uncomment the line below if you generate your PDF locally and do not want to track it
+# *.pdf
+
+code_test
 .idea
 .DS_Store
