@@ -1,8 +1,7 @@
 """Birthday search that stores every prefix. Memory grows like 2^(n/2)."""
-import hashlib
 
 from collision import Collision
-from truncate import truncate
+from truncate import sha256, truncate
 
 
 def hash_table(n: int) -> Collision:
@@ -13,7 +12,7 @@ def hash_table(n: int) -> Collision:
     i = 0
     while True:
         message = str(i).encode()
-        digest = hashlib.sha256(message).digest()
+        digest = sha256(message)
         prefix = truncate(digest, n)
         hashes += 1
         
