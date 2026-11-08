@@ -7,8 +7,7 @@ A signature that checks only H_n accepts every message with that prefix.
 Start at n = 32. For each method that finishes, record the two inputs,
 the shared prefix, the number of hashes, the time, and the memory.
 
-    sha256.py         padding, schedule, 64 rounds
-    truncate.py       keep the leading n bits
+    truncate.py       hashlib.sha256, then the leading n bits
     hash_table.py     store every prefix; memory grows like 2^(n/2)
     floyd.py          tortoise and hare; memory stays constant
     distinguished.py  store one state every 2^d steps
