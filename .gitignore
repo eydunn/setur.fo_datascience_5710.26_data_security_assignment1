@@ -117,3 +117,5 @@ Testing/
 ## Final PDF document
 # Uncomment the line below if you generate your PDF locally and do not want to track it
 # *.pdf
+
+code_test
