@@ -1,0 +1,298 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+<HEAD>
+
+<title>Hash Collisions (The Poisoned Message Attack)</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+</head>
+
+<center>
+
+<strong>Note:</strong> this is a mirror of <a href="http://th.informatik.uni-mannheim.de/People/lucks/HashCollisions/">http://th.informatik.uni-mannheim.de/People/lucks/HashCollisions/</a><br>for the benefit of students following the Security course at Radboud University. Date of duplication: 2015-10-20.
+
+<h1>Hash Collisions (The Poisoned Message Attack)<br>
+    "The Story of Alice and her Boss"</h1>
+    <img src="same_hash_all.png" alt="" border="0" align="top">
+</center>
+
+<h2>"I don't Know Much About Cryptography 
+    - what is a Hash?"</h2>
+
+<p>
+One of the main workhorses of modern cryptography are 
+  <em>collision resistant hash functions</em>,
+such as MD5.
+Given an (almost) arbitrarily long input <em>M</em>, they produce a
+fixed-size output <em>H(M)</em>. Collision resistance means that it is
+infeasible to find two different inputs <em>M</em> and <em>M'</em> with the
+same hash <em>H(M)=H(M')</em>. Note that many collisions exist, but it has 
+to be infeasible to actually find even a single collision!
+</p>
+
+<p>
+Hash functions are almost omnipresent in today's cryptography, e.g. in
+digital signatures. Instead of signing a long message
+<em>M</em>, you simply sign its hash <em>H(M)</em>. This is useful and
+simplifies many issues ... but if <em>H(M)</em> is identical to 
+<em>H(M')</em> then the signature is also valid for <em>M'</em>. 
+</p>
+
+
+<h2>The Story of Alice and her Boss</h2>
+
+<p>
+  Alice has been an intern, working some weeks in Rome at the office of, 
+  say, Julius Caesar. Depending on the point of view, the 
+  story develops quite differently.
+</p>
+
+<h2>Caesar's View</h2>
+
+<p>
+  At the day Alice is supposed to leave, Caesar writes a letter of 
+  recommendation for Alice -- on paper. 
+  The same day, she asks Caesar to digitally sign the letter. For his 
+  convenience she presents an electronic copy of the document. Caesar 
+  opens the document -- it looks exactly like the original document. 
+  So he signs the document.
+</p>
+
+<p>
+  Months later, Caesar discovers
+  that there has been a <strong>breach of secrecy</strong> 
+  with his French affair files. 
+  Will he ever find out <em>who</em> tricked him and <em>how</em>?
+</p>
+
+<h2>Alice's View</h2>
+
+<p>
+  Being an intern, Alice does not have any access to secret documents. Not 
+  enough for her ...
+</p>
+
+<p>
+  ... tricky Alice decides to fool Caesar.
+  Because Caesar is still relying on the widely used MD5 hash function, 
+  she implements the attack from Wang and Yu [WY05] to 
+  find MD5 collisions. When she receives her letter of recommendation (on 
+  paper), she prepares <strong>two postscript files with the same MD5
+  hash</strong>: 
+</p>
+
+<ul>
+  <li>One to display the 
+    <a href="letter_of_rec.ps">letter of recommendation</a>, and 
+  </li>
+  <li>
+     a second one, an <a href="order.ps">order</a> from Caesar to grant 
+     Alice some kind of a security clearance.
+  </li>
+</ul>
+
+<center>
+    
+    <a href="letter_of_rec.ps"
+         ><img src="letter.png" alt="letter" border="0" align="top"></a>
+    <a href="order.ps"
+     ><img src="order.png" alt="order" border="0" align="top"></a>
+    <br>
+    <img src="SameHash.png" alt="(apply MD5 to both documents)" 
+         border="0" align="top">
+    <br>
+    a25f7f0b 29ee0b39 68c86073 8533a4b9
+</center>
+
+<ul>
+<li>
+Check out yourself:
+Even though both postscript files <em>look entirely
+different</em> in print, their MD5 hash value is the same.
+Software: info on
+<a href="http://www.delorie.com/gnu/docs/textutils/md5sum.1.html">
+md5sum for Linux</a> and
+<a href="http://www.etree.org/md5com.html">md5sum.exe for Windows</a>. 
+</li>
+</ul>
+
+<p>
+  Now she asks Caesar to sign the letter ... who has no obvious
+  reason to decline.
+</p>
+
+<p>
+  Due to the hash collision,
+  Caesar's signature for the letter of recommendation is valid for the 
+  order, as well. She presents order and digital signature to the person 
+  in charge of Caesar's files ... <strong>and finally gains
+  access to Caesar's secret documents!</strong>
+</p>
+
+
+
+<h2>Technical Background: How did you do it?</h2>
+
+<p> Based on [WY05], we implemented an attack to find 
+  random collisions for the MD5 compression function. It took just a few 
+  hours on a customary PC. Using the length 
+  extension property present in MD5 and all other hash functions following 
+  the (almost omnipresent) Merkle-Damgaard design principle, we 
+  constructed a pair of documents to display either the letter or the 
+  order. 
+</p>
+
+<h2>Do you have more details? What else is possible?</h2>
+
+<p>
+  We are preparing a paper on this. 
+</p>
+
+<p>
+  If you look into postscript documents, e.g. by opening them in a text or 
+  hex editor, you'll get an idea about what is going on. 
+  (We did not try to obfuscate the postscript Code.)
+</p>
+
+<p>
+  Oh, you can also look at the slides of our presentation
+  at the Eurocrypt 2005 rump session.
+</p>
+
+
+<h2>Summary -- why did you do this?</h2>
+
+<p>
+Recently, the world of cryptographic hash functions has turned into a mess.
+A lot of researchers announced algorithms ("attacks") to find collisions for
+common hash functions such as MD5 and SHA-1 <em>(see [B+, WFLY, WY, WYY-a, 
+WYY-b])</em>. 
+For cryptographers, these results are exciting - but many so-called 
+"practitioners" turned them down as "practically irrelevant". 
+The point is that while it is possible to 
+find colliding messages <em>M</em> and <em>M'</em>, these messages appear 
+to be more or less random - or rather, contain a random string of some 
+fixed length (e.g., 1024 bit in the case of MD5). If you cannot exercise 
+control over colliding messages, these collisions are theoretically 
+interesting but harmless, right? In the past few weeks, we have met quite 
+a few people who thought so. 
+</p>
+
+<p>
+  With this page, we want to demonstrate 
+  how <strong>badly wrong</strong> this kind of reasoning is! We hope to 
+  provide convincing evidence even for people without much technical or 
+  cryptographical background.
+</p>
+
+<p>
+There have already been a few exploits of the collision-finding attacks 
+against MD5:
+<em>
+  Kaminski [Ka] and Mikle [Mi] presented different executables with the 
+  same MD5 hash. One of Kaminski's executables was quite harmless, the 
+  other one very harmful. Mikle's executables were self-extracting 
+  archives, extracting different stuff. 
+  Lenstra, Wang and de Weger [LWdW,LdW] constructed colliding X.509 
+  certificates. 
+</em>
+</p>
+
+<p>
+  These exploits seemed to be rather technical to us. We wanted 
+  real documents to collide, which you just open with 
+  some standard browser or viewer. Also, we wanted to present some 
+  use case for such collisions -- <em>the story of Alice 
+  and her boss</em>. We  hope, you liked our little story. :-)
+</p>
+
+<h2>Related Work and References</h2>
+
+<ul>
+  <li>
+    [B+]
+     E. Biham, R. Chen, A. Joux, P. Carribault, C. Lemuet, W. Jalby:
+     Collisions of SHA-0 and Reduced SHA-1. Eurocrypt 2005. 
+  </li>
+
+  <li>
+    [Ka] 
+      D. Kaminski
+      <a href="http://www.doxpara.com/md5_someday.pdf">
+      MD5 to be considered harmful someday</a>
+  </li>
+
+  <li>
+    [LWdW] A. Lenstra, X. Wang, B. de Weger:
+    <a href="http://www.win.tue.nl/~bdeweger/CollidingCertificates/">
+    Colliding X.509 Certificates</a>.
+  </li>
+  
+  <li>
+    [LdW] A. Lenstra, B. de Weger:
+    <a href=
+    "http://www.win.tue.nl/~bdeweger/CollidingCertificates/ddl-full.pdf">
+        On the possibility of constructing meaningful hash collisions for 
+        public keys</a>
+  </li>
+
+  <li>
+    [Mi] O. Mikle
+    <a href="http://eprint.iacr.org/2004/356">
+    Practical Attacks on Digital Signatures using MD5 message digest</a>
+  </li>
+
+  <li>
+    [WFLY]
+    X. Wang, D. Feng, X. Lai, H. Yu:
+    Cryptanalysis of the hash functions MD4 and RIPEMD. Eurocrypt 2005. 
+  </li>
+
+  <li>
+    [WY]
+    X. Wang, H. Yu:
+    How to break MD5 and other hash functions. Eurocrypt 2005. 
+  </li>
+
+  <li>
+    [WYY-a] X. Wang, H. Yu, Y.L. Yin:
+    Efficient collision search attacks on SHA0. Crypto 2005.
+  </li>
+  
+  <li>
+    [WYY-b] X. Wang, Y.L. Yin, H. Yu:
+    Finding collisions in the full SHA1. Crypto 2005.
+  </li>
+
+</ul>
+
+
+<h2>Acknowledgements</h2>
+
+<p>
+Many thanks to <em>Frederik Armknecht</em> and <em>Dirk Stegemann</em>
+for useful comments and discussions on
+this work and for helping with the computations to find the necessary
+collision. Many thanks also to <em>Benne de Weger</em>, who provided some 
+interesting comments and links to related work, and to <em>Ernst
+Giessmann</em>, who revealed Caesar's real address in (Via Appia instead 
+of Main Road) and gave us a hint how to improve the robustness of our 
+postscript code. Finally, many thanks to <em>Andreas Lucks</em> for 
+his advice on this presentation and the 
+<a href="same_hash_all.png">drawing</a>.
+
+</p>
+
+<hr>
+                  
+<h2>Authors</h2>
+
+<p>
+<a href="http://www.cits.ruhr-uni-bochum.de/personen/daum.html">Magnus Daum</a>
+  (CITS Research Group, RUB)<br>
+<a href="http://th.informatik.uni-mannheim.de/people/lucks/">Stefan Lucks</a>
+  (University of Mannheim)  
+</p>
+
+
+</body>
+</html>
