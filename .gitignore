@@ -118,6 +118,10 @@ Testing/
 # Uncomment the line below if you generate your PDF locally and do not want to track it
 # *.pdf
 
+# Python
+__pycache__/
+*.py[cod]
+
 code_test
 .idea
 .DS_Store

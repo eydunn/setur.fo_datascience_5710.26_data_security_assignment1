@@ -11,12 +11,11 @@ def sha256(message: bytes) -> bytes:
     return hashlib.sha256(message).digest()
 
 
-def truncate(digest: bytes, n: int) -> bytes:
-    """Return the most significant n bits of a SHA-256 digest."""
-    
+def truncate(digest: bytes, n: int) -> int:
+    """Return the most significant n bits of a SHA-256 digest, as an integer.
+    """
     if n % 8 != 0:
         raise ValueError("n must be a multiple of 8")
-        
-    return digest[:n // 8]
+    return int.from_bytes(digest[:n // 8], "big")
     
 
