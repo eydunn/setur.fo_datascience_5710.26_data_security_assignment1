@@ -26,7 +26,7 @@ from parallel import parallel
 
 def main() -> None:
     n = 32
-    # show(hash_table(n))
+    show(hash_table(n))
     # show(floyd(n))
     # show(distinguished(n, distinguish_bits=n // 4))
     # show(parallel(n, workers=4))
