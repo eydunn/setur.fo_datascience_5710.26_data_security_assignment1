@@ -38,13 +38,42 @@ def read_n() -> int:
     return n
 
 
+def read_method() -> str:
+    """Ask which search to run. Ask again when the choice is outside 1-6."""
+    print("1  hash table")
+    print("2  Floyd")
+    print("3  distinguished points")
+    print("4  parallel")
+    print("5  meaningful messages")
+    print("6  exit")
+    while True:
+        choice = input("Method: ").strip()
+        if choice in {"6", "1", "2", "3", "4", "5"}:
+            return choice
+        print(f"{choice} is outside 1 to 6")
+
+
+def run_search(choice: str, n: int):
+    if choice == "1":
+        return hash_table(n)
+    if choice == "2":
+        return floyd(n)
+    if choice == "3":
+        return distinguished(n, n // 4)
+    if choice == "4":
+        return parallel(n, workers=4)
+    return meaningful(n)
+
+
 def main() -> None:
+    choice = read_method()
+    if choice == "6":
+        return
     n = read_n()
-    show(hash_table(n))
-    # show(floyd(n))
-    # show(distinguished(n, distinguish_bits=n // 4))
-    # show(parallel(n, workers=4))
-    # show(meaningful(n))
+    found = run_search(choice, n)
+    if found is None:
+        raise SystemExit("that method has no search yet")
+    show(found)
 
 
 if __name__ == "__main__":
