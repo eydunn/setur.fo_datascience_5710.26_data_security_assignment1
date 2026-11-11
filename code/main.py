@@ -24,8 +24,22 @@ from meaningful import meaningful
 from parallel import parallel
 
 
+def read_n() -> int:
+    """Ask for a prefix length. It must be a multiple of 8."""
+    input_number = input("Prefix length n (multiple of 8, from 8 to 256): ")
+    try:
+        n = int(input_number)
+    except ValueError:
+        raise SystemExit("n must be an integer")
+    if n % 8 != 0:
+        raise SystemExit("n must be a multiple of 8")
+    if not 8 <= n <= 256:
+        raise SystemExit("n must be from 8 to 256")
+    return n
+
+
 def main() -> None:
-    n = 32
+    n = read_n()
     show(hash_table(n))
     # show(floyd(n))
     # show(distinguished(n, distinguish_bits=n // 4))
