@@ -335,7 +335,7 @@ The person distinguishes the sentences. The truncated check does not.
 **5. This is the birthday construction with a free serial. It is not the MD5 PostScript construction.**
 The cost is the same 2^(n/2). The MD5 pair on the Alice slide stays a citation. If a later lecture gives a tighter document construction, this is the version we can already run, and the security conclusion already follows from a colliding prefix.
 
-## Slide 20 — What "verified yes" means
+## Slide 20 — What "Verified collision" means
 
 **After a search returns, the program hashes both messages again and checks three things.**
 The search returning a pair is not the check. The printer hashes both messages again.
@@ -350,7 +350,7 @@ Both fresh digests are truncated. The prefixes have to agree.
 The fresh prefix has to equal the prefix the search claimed. This catches a wrong value stored in the table.
 
 **The check is a fresh SHA-256 of each message. It does not trust the table.**
-"Verified yes" means all three passed. The time on that printout is the wall-clock time of the search. The memory is the peak traced memory. A line that says "not recorded" means that run did not measure it.
+"Verified collision" means all three passed. The time on that printout is the wall-clock time of the search. The memory is the peak traced memory. A line that says "not recorded" means that run did not measure it.
 
 ## Slide 21 — What to take from a run
 

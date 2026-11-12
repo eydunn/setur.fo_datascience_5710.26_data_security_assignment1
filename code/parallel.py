@@ -49,13 +49,14 @@ def _floyd_seed(spec):
     hashes = 0
     step_limit = max(64 * (1 << (n // 2)), 1000)
 
-    def function(state):
+    def step(state):
+        """One step: hash the state, keep the leading n bits."""
         nonlocal hashes
         hashes += 1
         digest = sha256(state.to_bytes(width, "big"))
         return truncate(digest, n)
 
-    pair = _cycle_pair(function, seed, step_limit)
+    pair = _cycle_pair(step, seed, step_limit)
     if pair is None:
         return None
     left, right = pair

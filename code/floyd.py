@@ -13,14 +13,16 @@ from collision import Collision
 from truncate import sha256, truncate
 
 
-def _cycle_pair(function, start, step_limit):
-    """Return two inputs with the same image, or None."""
-    tortoise = function(start)
-    hare = function(tortoise)
+def _cycle_pair(step, start, step_limit):
+    """Return the two states that both step onto the cycle entrance."""
+    # Tortoise is one step from the start. Hare is one step further.
+    tortoise = step(start)
+    hare = step(tortoise)
     steps = 0
     while tortoise != hare:
-        tortoise = function(tortoise)
-        hare = function(function(hare))
+        tortoise = step(tortoise)
+        hare = step(hare)
+        hare = step(hare)
         steps += 1
         if steps > step_limit:
             return None
@@ -28,29 +30,29 @@ def _cycle_pair(function, start, step_limit):
     tortoise = start
     steps = 0
     while tortoise != hare:
-        tortoise = function(tortoise)
-        hare = function(hare)
+        tortoise = step(tortoise)
+        hare = step(hare)
         steps += 1
         if steps > step_limit:
             return None
     entrance = tortoise
 
     tail = start
-    current = function(start)
+    current = step(start)
     steps = 0
     while current != entrance:
         tail = current
-        current = function(current)
+        current = step(current)
         steps += 1
         if steps > step_limit:
             return None
 
     cycle = entrance
-    current = function(entrance)
+    current = step(entrance)
     steps = 0
     while current != entrance:
         cycle = current
-        current = function(current)
+        current = step(current)
         steps += 1
         if steps > step_limit:
             return None
@@ -61,14 +63,15 @@ def _cycle_pair(function, start, step_limit):
 
 
 def floyd(n: int) -> Collision:
-    """Iterate a function from n-bit states to n-bit states."""
+    """Walk n-bit states. Each step hashes the state and keeps the leading n bits."""
     width = n // 8
     hashes = 0
     step_limit = max(64 * (1 << (n // 2)), 1000)
     tracemalloc.start()
     started = time.perf_counter()
 
-    def function(state):
+    def step(state):
+        """One step: hash the state, keep the leading n bits."""
         nonlocal hashes
         hashes += 1
         digest = sha256(state.to_bytes(width, "big"))
@@ -76,7 +79,7 @@ def floyd(n: int) -> Collision:
 
     pair = None
     for seed in range(16):
-        pair = _cycle_pair(function, seed, step_limit)
+        pair = _cycle_pair(step, seed, step_limit)
         if pair is not None:
             break
     elapsed = time.perf_counter() - started
