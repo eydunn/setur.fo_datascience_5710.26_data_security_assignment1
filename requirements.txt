@@ -1,3 +1,8 @@
 # Third-party package used by code/test_collision.py.
+# Third-party packages. pytest runs code/test_collision.py; matplotlib and
+# numpy are for code/plot_results.py.
 # hashlib, time, and tracemalloc come with Python.
 pytest
+matplotlib
+numpy
+

@@ -13,6 +13,11 @@ from collision import Collision
 from truncate import sha256, truncate
 
 
+def default_distinguish_bits(n: int) -> int:
+    """d when none is given: a quarter of n, at least 1 and below n."""
+    return max(1, min(n // 4, n - 1))
+
+
 def chain_start(index: int, n: int, distinguish_bits: int) -> int:
     """A start state whose low bits are not already zero."""
     mask = (1 << n) - 1

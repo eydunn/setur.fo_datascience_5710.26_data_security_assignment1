@@ -1,254 +1,266 @@
-"""Each search, split across processes.
+"""The four searches split across worker processes.
 
-Menu choice 4 asks which algorithm to parallelize.
-
-Hash table and meaningful messages split the counter. Each process
-hashes its own share, and the parent merges the prefixes.
-Floyd starts one tortoise-hare walk per process, from different seeds.
-Distinguished points split the chains. The parent merges the endpoints.
+Each worker runs tracemalloc and reports how many hashes it did, so the numbers
+can be compared with the sequential searches. When a collision is found, the
+workers are told to stop: tasks that are already running finish and are
+counted, tasks still waiting are skipped.
 """
 
+import multiprocessing
+import os
 import time
 import tracemalloc
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from collision import Collision
-from distinguished import chain_start, colliding_states, walk_to_distinguished
+from distinguished import (chain_start, colliding_states, default_distinguish_bits,
+                           walk_to_distinguished)
 from floyd import _cycle_pair
 from meaningful import LETTER, ORDER, _with_serial
 from truncate import sha256, truncate
 
+BATCH = 4096           # hashes per task for the hash table and meaningful messages
+CHAINS_PER_TASK = 16   # chains per task for distinguished points
+STOP_CHECK = 2 ** 16   # a Floyd walk looks at the stop signal every 2^16 steps
 
-def _ranges(total, workers):
-    workers = max(1, min(workers, total))
-    base, extra = divmod(total, workers)
-    start = 0
-    groups = []
-    for worker in range(workers):
-        size = base + (1 if worker < extra else 0)
-        if size:
-            groups.append((start, start + size))
-            start += size
-    return groups
+stop_signal = None     # each worker gets its own copy in _start_worker
 
 
-def _hash_batch(spec):
-    """Hash one share of the decimal counters."""
-    n, start, count, step = spec
+class _Stopped(Exception):  # empty exception
+    pass
+
+
+# Code that runs in the workers
+
+def _start_worker(stop):
+    """Runs once in every worker process."""
+    global stop_signal
+    stop_signal = stop
+    tracemalloc.start()
+
+
+def _reply(result, hashes):
+    """What every task sends back to the parent."""
+    worker_id = os.getpid()
+    _, memory = tracemalloc.get_traced_memory()
+    return result, hashes, worker_id, memory
+
+
+def _hash_batch(task):
+    n, first, count = task
+    if stop_signal.is_set():
+        return _reply([], 0)
     rows = []
-    for k in range(count):
-        message = str(start + k * step).encode()
+    for counter in range(first, first + count):
+        message = str(counter).encode()
         rows.append((truncate(sha256(message), n), message))
-    return rows
+    return _reply(rows, count)
 
 
-def _floyd_seed(spec):
-    """One tortoise-hare walk from a single seed."""
-    n, seed = spec
+def _hash_serials(task):
+    n, template, first, count = task
+    if stop_signal.is_set():
+        return _reply([], 0)
+    rows = []
+    for serial in range(first, first + count):
+        prefix = truncate(sha256(_with_serial(template, serial)), n)
+        rows.append((prefix, serial))
+    return _reply(rows, count)
+
+
+def _floyd_seed(task):
+    n, seed = task
     width = n // 8
     hashes = 0
-    step_limit = max(64 * (1 << (n // 2)), 1000)
 
     def step(state):
-        """One step: hash the state, keep the leading n bits."""
         nonlocal hashes
         hashes += 1
-        digest = sha256(state.to_bytes(width, "big"))
-        return truncate(digest, n)
+        if hashes % STOP_CHECK == 0 and stop_signal.is_set():
+            raise _Stopped
+        return truncate(sha256(state.to_bytes(width, "big")), n)
 
-    pair = _cycle_pair(step, seed, step_limit)
-    if pair is None:
-        return None
-    left, right = pair
-    message = left.to_bytes(width, "big")
-    return message, right.to_bytes(width, "big"), truncate(sha256(message), n), hashes
+    if stop_signal.is_set():
+        return _reply(None, 0)
+    try:
+        pair = _cycle_pair(step, seed, max(64 * 2 ** (n // 2), 1000))
+    except _Stopped:
+        pair = None
+    return _reply(pair, hashes)
 
 
-def _walk_many(spec):
-    """Walk one batch of distinguished-point chains."""
-    n, distinguish_bits, first, count, max_steps = spec
+def _walk_many(task):
+    n, d, first, count, max_steps = task
+    if stop_signal.is_set():
+        return _reply([], 0)
     chains = []
     hashes = 0
     for index in range(first, first + count):
-        start = chain_start(index, n, distinguish_bits)
-        hit = walk_to_distinguished(n, start, distinguish_bits, max_steps)
+        start = chain_start(index, n, d)
+        hit = walk_to_distinguished(n, start, d, max_steps)
         if hit is None:
+            hashes += max_steps  # gave up on this chain, but the hashes were done
             continue
-        endpoint, steps, used = hit
+        endpoint, length, used = hit
         hashes += used
-        chains.append((endpoint, start, steps))
-    return chains, hashes
+        chains.append((endpoint, start, length))
+    return _reply(chains, hashes)
 
 
-def _letter_slice(spec):
-    n, start, stop = spec
-    found = {}
-    hashes = 0
-    for serial in range(start, stop):
-        message = _with_serial(LETTER, serial)
-        found.setdefault(truncate(sha256(message), n), serial)
-        hashes += 1
-    return found, hashes
+# Code that runs in the parent
+
+def _new_pool(workers):
+    """A pool of worker processes, and the signal that tells them to stop."""
+    stop = multiprocessing.Event()
+    pool = multiprocessing.Pool(max(1, workers), initializer=_start_worker, initargs=(stop,))
+    return pool, stop
 
 
-def _order_slice(spec):
-    n, start, stop, letters = spec
-    hashes = 0
-    for serial in range(start, stop):
-        order = _with_serial(ORDER, serial)
-        prefix = truncate(sha256(order), n)
-        hashes += 1
-        letter_serial = letters.get(prefix)
-        if letter_serial is not None:
-            return (prefix, letter_serial, serial), hashes
-    return None, hashes
-
-
-def _finished(n, method, message, other, prefix, hashes, started):
-    elapsed = time.perf_counter() - started
-    _, peak = tracemalloc.get_traced_memory()
+def _finish(n, method, message, other, hashes, start_time, worker_memory):
+    """Stop the clock and the memory tracing, and return the Collision."""
+    seconds = time.perf_counter() - start_time
+    _, parent_memory = tracemalloc.get_traced_memory()
     tracemalloc.stop()
+    if message is None:
+        raise RuntimeError(f"no {method} collision for n={n}")
     return Collision(
         n=n,
         method=method,
         message=message,
         other=other,
-        prefix=prefix,
+        prefix=truncate(sha256(message), n),
         hashes=hashes,
-        time_in_seconds=elapsed,
-        peak_bytes=peak,
+        time_in_seconds=seconds,
+        peak_bytes=parent_memory + sum(worker_memory.values()),
     )
 
 
 def parallel_hash_table(n: int, workers: int) -> Collision:
-    """Split the counters. The parent keeps the one prefix table."""
-    workers = max(1, workers)
-    batch = 2048
-    seen = {}
-    hashes = 0
-    cursors = list(range(workers))
+    """Workers hash batches of counters. The parent keeps the one prefix table."""
+    number_of_counters = 8 * 2 ** (n // 2)  # far more than a collision needs
+    tasks = [(n, first, BATCH) for first in range(0, number_of_counters, BATCH)]
+    seen = {}            # prefix -> message
+    total_hashes = 0
+    worker_memory = {}   # worker id -> its memory peak
+    message = other = None
+
     tracemalloc.start()
-    started = time.perf_counter()
-    pool = ProcessPoolExecutor(max_workers=workers)
-    try:
-        while True:
-            specs = [(n, cursors[w], batch, workers) for w in range(workers)]
-            for rows in pool.map(_hash_batch, specs):
-                for prefix, message in rows:
-                    hashes += 1
-                    other = seen.get(prefix)
-                    if other is not None:
-                        return _finished(
-                            n, "parallel hash_table", message, other,
-                            prefix, hashes, started,
-                        )
-                    seen[prefix] = message
-            for w in range(workers):
-                cursors[w] += batch * workers
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
+    start_time = time.perf_counter()
+    pool, stop = _new_pool(workers)
+    with pool:
+        for rows, hashes, worker_id, memory in pool.imap_unordered(_hash_batch, tasks):
+            total_hashes += hashes
+            worker_memory[worker_id] = memory  # a worker's peak only grows
+            if message is not None:
+                continue  # already found: just collect the last results
+            for prefix, new_message in rows:
+                if prefix not in seen:
+                    seen[prefix] = new_message
+                else:
+                    message, other = new_message, seen[prefix]
+                    stop.set()
+                    break
+
+    return _finish(n, "parallel hash_table", message, other, total_hashes, start_time, worker_memory)
 
 
 def parallel_floyd(n: int, workers: int) -> Collision:
-    """One tortoise-hare walk per process, each from its own seed."""
-    workers = max(1, workers)
+    """Independent restarts: each worker runs a whole Floyd walk from its own seed."""
+    tasks = [(n, seed) for seed in range(4 * max(1, workers))]
+    total_hashes = 0
+    worker_memory = {}
+    message = other = None
+
     tracemalloc.start()
-    started = time.perf_counter()
-    pool = ProcessPoolExecutor(max_workers=workers)
-    try:
-        for round_index in range(4):
-            seeds = range(round_index * workers, (round_index + 1) * workers)
-            futures = [pool.submit(_floyd_seed, (n, seed)) for seed in seeds]
-            for future in as_completed(futures):
-                result = future.result()
-                if result is None:
+    start_time = time.perf_counter()
+    pool, stop = _new_pool(workers)
+    with pool:
+        for pair, hashes, worker_id, memory in pool.imap_unordered(_floyd_seed, tasks):
+            total_hashes += hashes
+            worker_memory[worker_id] = memory
+            if message is None and pair is not None:
+                left, right = pair
+                message = left.to_bytes(n // 8, "big")
+                other = right.to_bytes(n // 8, "big")
+                stop.set()
+
+    return _finish(n, "parallel floyd (independent restarts)", message, other,
+                   total_hashes, start_time, worker_memory)
+
+
+def parallel_distinguished(n: int, workers: int,
+                           distinguish_bits: int | None = None) -> Collision:
+    """Workers walk batches of chains. The parent merges the distinguished endpoints."""
+    d = distinguish_bits if distinguish_bits is not None else default_distinguish_bits(n)
+    max_steps = 32 * 2 ** d
+    number_of_chains = 8 * 2 ** (n // 2 - d)  # far more than a collision needs
+    tasks = [(n, d, first, CHAINS_PER_TASK, max_steps)
+             for first in range(0, number_of_chains, CHAINS_PER_TASK)]
+    endpoints = {}       # endpoint -> (start, length) of the first chain that reached it
+    total_hashes = 0
+    worker_memory = {}
+    message = other = None
+
+    tracemalloc.start()
+    start_time = time.perf_counter()
+    pool, stop = _new_pool(workers)
+    with pool:
+        for chains, hashes, worker_id, memory in pool.imap_unordered(_walk_many, tasks):
+            total_hashes += hashes
+            worker_memory[worker_id] = memory
+            if message is not None:
+                continue
+            for endpoint, start, length in chains:
+                if endpoint not in endpoints:
+                    endpoints[endpoint] = (start, length)
                     continue
-                message, other, prefix, used = result
-                return _finished(
-                    n, "parallel floyd", message, other, prefix, used, started,
-                )
-        tracemalloc.stop()
-        raise RuntimeError(f"no parallel Floyd collision for n={n}")
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
-
-
-def parallel_distinguished(n: int, workers: int) -> Collision:
-    """Split the chains. The parent merges the distinguished endpoints."""
-    distinguish_bits = max(1, min(n // 4, n - 1))
-    per_round = 4 * max((1 << (n // 2)) >> distinguish_bits, 1)
-    max_steps = 32 * (1 << distinguish_bits)
-    stored = {}
-    hashes = 0
-    tracemalloc.start()
-    started = time.perf_counter()
-    pool = ProcessPoolExecutor(max_workers=max(1, workers))
-    try:
-        for round_index in range(4):
-            first = round_index * per_round
-            specs = [
-                (n, distinguish_bits, first + start, stop - start, max_steps)
-                for start, stop in _ranges(per_round, workers)
-            ]
-            for chains, used in pool.map(_walk_many, specs):
-                hashes += used
-                for endpoint, start, steps in chains:
-                    earlier = stored.get(endpoint)
-                    if earlier is None:
-                        stored[endpoint] = (start, steps)
-                        continue
-                    found = colliding_states(n, start, steps, earlier[0], earlier[1])
-                    if found is None:
-                        continue
+                earlier_start, earlier_length = endpoints[endpoint]
+                found = colliding_states(n, start, length, earlier_start, earlier_length)
+                if found is not None:
                     left, right, extra = found
-                    hashes += extra
-                    width = n // 8
-                    return _finished(
-                        n, "parallel distinguished",
-                        left.to_bytes(width, "big"),
-                        right.to_bytes(width, "big"),
-                        truncate(sha256(left.to_bytes(width, "big")), n),
-                        hashes, started,
-                    )
-        tracemalloc.stop()
-        raise RuntimeError(f"no parallel distinguished collision for n={n}")
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
+                    total_hashes += extra  # the re-walk ran in the parent
+                    message = left.to_bytes(n // 8, "big")
+                    other = right.to_bytes(n // 8, "big")
+                    stop.set()
+                    break
+
+    return _finish(n, "parallel distinguished", message, other, total_hashes, start_time, worker_memory)
 
 
 def parallel_meaningful(n: int, workers: int) -> Collision:
-    """Split the serials. The parent merges the letter prefixes."""
-    width = 3 * (1 << (n // 2))
-    hashes = 0
-    letters = {}
+    """Workers hash the letters, then the orders. The parent keeps the letter table."""
+    count = 3 * 2 ** (n // 2)
+    letter_tasks = [(n, LETTER, first, min(BATCH, count - first)) for first in range(0, count, BATCH)]
+    order_tasks = [(n, ORDER, first, min(BATCH, count - first)) for first in range(0, count, BATCH)]
+    letters = {}         # prefix -> letter serial
+    total_hashes = 0
+    worker_memory = {}
+    message = other = None
+
     tracemalloc.start()
-    started = time.perf_counter()
-    pool = ProcessPoolExecutor(max_workers=max(1, workers))
-    try:
-        letter_specs = [(n, start, stop) for start, stop in _ranges(width, workers)]
-        for found, used in pool.map(_letter_slice, letter_specs):
-            hashes += used
-            for prefix, serial in found.items():
+    start_time = time.perf_counter()
+    pool, stop = _new_pool(workers)
+    with pool:
+        # First every letter ...
+        for rows, hashes, worker_id, memory in pool.imap_unordered(_hash_serials, letter_tasks):
+            total_hashes += hashes
+            worker_memory[worker_id] = memory
+            for prefix, serial in rows:
                 letters.setdefault(prefix, serial)
 
-        order_specs = [
-            (n, start, stop, letters) for start, stop in _ranges(width, workers)
-        ]
-        for hit, used in pool.map(_order_slice, order_specs):
-            hashes += used
-            if hit is None:
+        # ... then the orders, until one has the same prefix as a letter.
+        for rows, hashes, worker_id, memory in pool.imap_unordered(_hash_serials, order_tasks):
+            total_hashes += hashes
+            worker_memory[worker_id] = memory
+            if message is not None:
                 continue
-            prefix, letter_serial, order_serial = hit
-            return _finished(
-                n, "parallel meaningful",
-                _with_serial(LETTER, letter_serial),
-                _with_serial(ORDER, order_serial),
-                prefix, hashes, started,
-            )
-        tracemalloc.stop()
-        raise RuntimeError(f"no parallel meaningful collision for n={n}")
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
+            for prefix, serial in rows:
+                if prefix in letters:
+                    message = _with_serial(LETTER, letters[prefix])
+                    other = _with_serial(ORDER, serial)
+                    stop.set()
+                    break
+
+    return _finish(n, "parallel meaningful", message, other, total_hashes, start_time, worker_memory)
 
 
 def parallel(n: int, workers: int, algorithm: str) -> Collision:
