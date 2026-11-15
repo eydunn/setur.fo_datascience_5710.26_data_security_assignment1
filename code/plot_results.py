@@ -121,6 +121,16 @@ def plot_band(ax, ns, med, lo, hi, color, label):
         ax.vlines(ns, lo, hi, color=color, alpha=0.4)
 
 
+def n_ticks(ax, groups):
+    """Ticks at the n values that were run (multiples of 8), unless there
+    are too many to label."""
+    ns = sorted({n for g in groups for by_n in g.values() for n in by_n})
+    if len(ns) <= 12:
+        ax.set_xticks(ns)
+    else:
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+
 def birthday(n):
     return 2.0 ** (n / 2)
 
@@ -135,7 +145,7 @@ def fig_hashes(ok, colors, outdir):
         plot_band(ax, *series(by_n, "hashes"), colors[config], config)
     all_n = sorted({n for by_n in ok.values() for n in by_n})
     ax.plot(all_n, [birthday(n) for n in all_n], "k--", label=r"$2^{n/2}$")
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    n_ticks(ax, [ok])
     ax.legend(fontsize=8)
     save(fig, outdir, "hashes_vs_n")
 
@@ -147,7 +157,7 @@ def fig_normalized(ok, colors, outdir):
         plot_band(ax, *series(by_n, "hashes", scale=birthday), colors[config], config)
     ax.axhline(1, color="k", linestyle="--", linewidth=1)
     ax.set_ylim(bottom=0)
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    n_ticks(ax, [ok])
     ax.legend(fontsize=8)
     save(fig, outdir, "hashes_normalized")
 
@@ -197,7 +207,7 @@ def fig_time(ok, failed, colors, outdir, ahead=8):
         handles.append(Line2D([], [], color="gray", marker="x", linestyle=""))
         labels.append("failed run")
     ax.legend(handles, labels, fontsize=8)
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    n_ticks(ax, [ok, failed])
     save(fig, outdir, "time_vs_n")
     return fits
 
@@ -214,7 +224,7 @@ def fig_memory(ok, colors, outdir):
         ax.axhline(statistics.median(baselines), color="gray", linestyle="--",
                    linewidth=1, label="interpreter resident memory (not traced)")
     ax.yaxis.set_major_formatter(FuncFormatter(human_bytes))
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    n_ticks(ax, [ok])
     ax.legend(fontsize=8)
     save(fig, outdir, "memory_vs_n")
 
@@ -231,21 +241,30 @@ def fig_tradeoff(rows, ok, colors, outdir, n=None):
             print("tradeoff: no n where two methods both finished; skipped")
             return
         n = max(shared)
+    points = []
+    for config, by_n in single.items():
+        if n not in by_n:
+            continue
+        mems = [r["peak_bytes"] for r in by_n[n] if r["peak_bytes"]]
+        if not mems:
+            print(f"tradeoff: {config} has no peak_bytes at n = {n}; left out")
+            continue
+        points.append((config, statistics.median(r["seconds"] for r in by_n[n]),
+                       statistics.median(mems), by_n[n][0]["distinguish_bits"]))
+    if not points:
+        print(f"tradeoff: no finished single-process runs at n = {n}; skipped")
+        return
     fig, ax = new_axes(f"Time against memory at n = {n}", "median seconds",
                        "median peak memory")
     ax.set_xscale("log")
     ax.set_yscale("log", base=2)
     chain = []  # distinguished points, joined in order of d
-    for config, by_n in single.items():
-        if n not in by_n:
-            continue
-        sec = statistics.median(r["seconds"] for r in by_n[n])
-        mem = statistics.median(r["peak_bytes"] for r in by_n[n] if r["peak_bytes"])
+    for config, sec, mem, d in points:
         ax.scatter([sec], [mem], s=60, color=colors[config], zorder=3)
         ax.annotate(config, (sec, mem), textcoords="offset points",
                     xytext=(6, 4), fontsize=8)
         if config.startswith("distinguished"):
-            chain.append((by_n[n][0]["distinguish_bits"], sec, mem))
+            chain.append((d, sec, mem))
     if len(chain) > 1:
         chain.sort()
         ax.plot([c[1] for c in chain], [c[2] for c in chain], color="gray",
@@ -270,8 +289,7 @@ def fig_speedup(rows, outdir, n=None):
     for r in par:
         if r["n"] == n:
             times[r["distinguish_bits"]][r["workers"]].append(r["seconds"])
-    fig, ax = new_axes(f"Parallel speedup at n = {n}", "worker processes", "speedup")
-    top = 1
+    lines = []  # (d, baseline source, worker counts, speedups)
     for d, by_w in sorted(times.items()):
         if 1 in by_w:
             base, source = statistics.median(by_w[1]), "1 worker"
@@ -284,8 +302,14 @@ def fig_speedup(rows, outdir, n=None):
                 continue
             base, source = statistics.median(single), "distinguished"
         ws = sorted(by_w)
-        ax.plot(ws, [base / statistics.median(by_w[w]) for w in ws], marker="o",
-                label=f"d = {d} (baseline: {source})")
+        lines.append((d, source, ws, [base / statistics.median(by_w[w]) for w in ws]))
+    if not lines:
+        print(f"speedup: no parallel runs with a baseline at n = {n}; skipped")
+        return
+    fig, ax = new_axes(f"Parallel speedup at n = {n}", "worker processes", "speedup")
+    top = 1
+    for d, source, ws, speedups in lines:
+        ax.plot(ws, speedups, marker="o", label=f"d = {d} (baseline: {source})")
         top = max(top, max(ws))
     ax.plot([1, top], [1, top], "k--", linewidth=1, label="perfect scaling")
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -367,7 +391,11 @@ def main():
 
     # Lines against n are drawn only for configurations run at several n;
     # one-n sweeps (values of d, worker counts) belong to tradeoff and speedup.
-    over_n = {c: by_n for c, by_n in ok.items() if len(by_n) >= 2} or ok
+    # A configuration that failed at its second n still counts as run at two.
+    ran_at = defaultdict(set)
+    for r in rows:
+        ran_at[r["config"]].add(r["n"])
+    over_n = {c: by_n for c, by_n in ok.items() if len(ran_at[c]) >= 2} or ok
     failed_over_n = {c: by_n for c, by_n in failed.items()
                      if c in over_n or c not in ok}
 
