@@ -11,7 +11,7 @@ the shared prefix, the number of hashes, the time, and the memory.
     hash_table.py     store every prefix; memory grows like 2^(n/2)
     floyd.py          tortoise and hare; memory stays constant
     distinguished.py  store one state every 2^d steps
-    parallel.py       split those chains across processes
+    parallel.py       run one of the four searches on several processes
     meaningful.py     a letter and an order with the same prefix
     collision.py      the pair a search returns, and how it is printed
 """
@@ -53,7 +53,21 @@ def read_method() -> str:
         print(f"{choice} is outside 1 to 6")
 
 
-def run_search(choice: str, n: int):
+def read_parallel_method() -> str:
+    """Ask which algorithm to split across processes."""
+    print("Parallelize which algorithm?")
+    print("1  hash table")
+    print("2  Floyd")
+    print("3  distinguished points")
+    print("4  meaningful messages")
+    while True:
+        choice = input("Algorithm: ").strip()
+        if choice in {"1", "2", "3", "4"}:
+            return choice
+        print(f"{choice} is outside 1 to 4")
+
+
+def run_search(choice: str, n: int, algorithm: str | None = None):
     if choice == "1":
         return hash_table(n)
     if choice == "2":
@@ -61,7 +75,7 @@ def run_search(choice: str, n: int):
     if choice == "3":
         return distinguished(n, n // 4)
     if choice == "4":
-        return parallel(n, workers=4)
+        return parallel(n, workers=4, algorithm=algorithm)
     return meaningful(n)
 
 
@@ -69,8 +83,9 @@ def main() -> None:
     choice = read_method()
     if choice == "6":
         return
+    algorithm = read_parallel_method() if choice == "4" else None
     n = read_n()
-    found = run_search(choice, n)
+    found = run_search(choice, n, algorithm)
     if found is None:
         raise SystemExit("that method has no search yet")
     show(found)

@@ -53,7 +53,7 @@ def show(found: Collision) -> None:
     if problems:
         print("verified NO: " + "; ".join(problems))
     else:
-        print("verified yes")
+        print("Verified collision")
 
     print(f"hashes:   {found.hashes}")
     if found.time_in_seconds is None:

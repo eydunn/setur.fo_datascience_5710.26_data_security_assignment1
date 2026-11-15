@@ -22,7 +22,7 @@ def good():
 def test_valid_pair_is_verified(good, capsys):
     show(good)
     out = capsys.readouterr().out
-    assert "verified yes" in out
+    assert "Verified collision" in out
     assert "74ef0b" in out
 
 

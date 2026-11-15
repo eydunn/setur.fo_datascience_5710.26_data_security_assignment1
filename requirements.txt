@@ -1,0 +1,3 @@
+# Third-party package used by code/test_collision.py.
+# hashlib, time, and tracemalloc come with Python.
+pytest

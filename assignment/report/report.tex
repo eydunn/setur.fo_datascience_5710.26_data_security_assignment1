@@ -1,414 +1,369 @@
-\documentclass[11pt,a4paper]{article}
-
-% Report template for the truncated SHA-2 assignment.
-% Replace each gray italic prompt before you submit.
-% Build the table of contents with two passes, or with latexmk:
-%   latexmk -pdf report.tex
+\documentclass[aspectratio=169,11pt]{beamer}
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{lmodern}
-\usepackage[margin=2.5cm]{geometry}
-\usepackage{microtype}
-\usepackage{setspace}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
-\usepackage{array}
-\usepackage{enumitem}
-\usepackage{xcolor}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning}
-\usepackage[hidelinks]{hyperref}
+\usetikzlibrary{arrows.meta,positioning,decorations.pathreplacing}
+
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize item}{\textbullet}
 
 \tikzset{
-  box/.style={draw, thick, font=\ttfamily, inner sep=3.5pt, minimum height=7.5mm},
+  box/.style={draw, thick, font=\ttfamily\small, inner sep=2.5pt, minimum height=6.2mm},
   kept/.style={box, fill=blue!12},
   hit/.style={box, fill=orange!22},
   plain/.style={box, fill=black!4},
-  flow/.style={-{Stealth[length=2.2mm]}, thick},
-  tag/.style={font=\small, align=center}
+  flow/.style={-{Stealth[length=2mm]}, thick},
+  tag/.style={font=\scriptsize, align=center}
 }
-
-\onehalfspacing
-\setlist[itemize]{topsep=0.3em,itemsep=0.15em}
-\setlist[enumerate]{topsep=0.3em,itemsep=0.2em}
-
-% Edit these four lines.
-\newcommand{\studentname}{Your Name}
-\newcommand{\studentid}{Student ID}
-\newcommand{\coursename}{Data Security}
-\newcommand{\reporttitle}{How Secure Is a Truncated SHA-2 Digest?}
 
 \newcommand{\Hn}{H_{n}}
 \newcommand{\prefix}{\operatorname{prefix}}
-\newcommand{\prompt}[1]{%
-  \par\smallskip
-  {\color{black!45}\itshape #1\par}%
-  \smallskip
-}
 
-\hypersetup{
-  pdftitle={\reporttitle},
-  pdfauthor={\studentname}
-}
+\title{How Secure Is a Truncated SHA-2 Digest?}
+\subtitle{Birthday collisions on a prefix, and a signature that checks only that prefix}
+\author{Kristmund, Ey{\dh}un, Torkil}
+\institute{Data Security}
+\date{\today}
 
 \begin{document}
-% Alphabetic anchors keep the title page from sharing page.1 with the body.
-\pagenumbering{alph}
 
-\begin{titlepage}
-  \centering
-  \thispagestyle{empty}
-  \vspace*{1.6cm}
-  {\LARGE\bfseries \reporttitle\par}
-  \vspace{0.8cm}
-  {\Large Course report\par}
-  \vspace{1.6cm}
-  {\large Truncated SHA-256, birthday collisions,\\
-   and a signature that checks only a prefix\par}
-  \vfill
-  \begin{tabular}{@{}>{\bfseries}ll@{}}
-    Student  & \studentname \\
-    ID       & \studentid \\
-    Course   & \coursename \\
-    Date     & \today \\
-  \end{tabular}
-  \vfill
-  {\small Problem statement: \texttt{assignment/problem/problem.tex}\par}
-  \vspace*{1cm}
-\end{titlepage}
+\begin{frame}
+  \titlepage
+\end{frame}
 
-\pagenumbering{roman}
-\tableofcontents
-\clearpage
-\pagenumbering{arabic}
+\begin{frame}{The question}
+  \begin{itemize}
+    \item A verifier keeps the first \(n\) bits of SHA-256 and ignores the rest.
+    \item Call that check \(\Hn(x) = \prefix_{n}(H(x))\).
+    \item Any second message with the same prefix verifies under the same signature.
+    \item We measure how large \(n\) has to be before finding such a pair stops being practical.
+  \end{itemize}
+\end{frame}
 
-\section{Introduction}
-\prompt{%
-  State the question in your own words.
-  A signature that verifies \(\Hn(x) = \prefix_{n}(H(x))\) accepts every
-  message with that same \(n\)-bit prefix.
-  Say which \(n\) you studied and what you concluded about the signature.%
-}
+\begin{frame}{What the talk covers}
+  \begin{enumerate}
+    \item What truncation removes, and which bits are kept.
+    \item Why the cost is \(2^{n/2}\), not \(2^{n}\) and not \(2^{128}\).
+    \item Five ways to search: hash table, Floyd, distinguished points, parallel chains, meaningful messages.
+    \item The largest \(n\) the machine can still break, and what that means for the signature.
+  \end{enumerate}
+\end{frame}
 
-\section{Background}
+\begin{frame}{SHA-256}
+  \begin{itemize}
+    \item SHA-256 is one function in the SHA-2 family. Its digest is 256 bits, 64 hex digits.
+    \item It is built to be collision resistant and preimage resistant.
+    \item Full SHA-256 is used in signatures, TLS, and blockchains.
+    \item We do not attack the compression function. We attack the prefix a verifier chose to keep.
+  \end{itemize}
+\end{frame}
 
-\subsection{SHA-2}
-\prompt{%
-  Identify the member of the family you hashed (SHA-256 unless you changed
-  it), its output length, and the properties the full function is designed
-  to provide: collision resistance and preimage resistance.
-  Name where a digest of this kind is used (signatures, TLS, blockchains)
-  only as far as it matters for the attack.%
-}
+\begin{frame}{Truncation}
+  \[
+    \Hn(x) = \prefix_{n}\bigl(H(x)\bigr)
+  \]
+  \begin{itemize}
+    \item \(H(x)\) is the full SHA-256 digest.
+    \item The prefix is the most significant \(n\) bits: the leading hex digits.
+    \item For \(n = 32\), that is the first 8 hex digits. The other 56 digits are discarded.
+    \item Every bit dropped from the prefix halves the birthday cost.
+  \end{itemize}
+\end{frame}
 
-\subsection{Truncation and significant bits}
-\prompt{%
-  Define \(\Hn(x) = \prefix_{n}(H(x))\) and state that the prefix is the
-  most significant \(n\) bits, the leading bits when the digest is written
-  in hex.
-  A short example, even one byte, is enough to fix MSB and LSB.%
-}
+\begin{frame}{Which bits are the prefix?}
+  \begin{center}
+  \begin{tikzpicture}[
+      bit/.style={draw, thick, minimum size=8mm, inner sep=0pt, font=\ttfamily},
+      bitlabel/.style={font=\scriptsize}
+    ]
+    \foreach \bit [count=\i from 0] in {0,1,1,0,0,1,0,0}{
+      \node[bit] (b\i) at (1.05*\i,0) {\bit};
+    }
+    \node[bitlabel, anchor=north] at ([yshift=-1.5mm]b0.south) {MSB};
+    \node[bitlabel, anchor=north] at ([yshift=-1.5mm]b7.south) {LSB};
+    \draw[decorate, decoration={brace, amplitude=4pt}, thick]
+      ([yshift=2mm]b0.north west) -- ([yshift=2mm]b7.north east)
+      node[midway, above=6pt, font=\scriptsize] {written left to right};
+  \end{tikzpicture}
+  \end{center}
+  The lecture byte is \texttt{01100100}. The leftmost bit is the most significant bit.\\
+  \(\Hn\) keeps that same left-hand end of the 256-bit digest.
+\end{frame}
 
-\subsection{Birthday bound}
-\prompt{%
-  Give the collision condition \(x \neq x'\) and \(\Hn(x) = \Hn(x')\),
-  and the generic cost \(O(2^{n/2})\).
-  Record the lecture's reading of that cost: truncation leaves at most
-  \(n/2\) bits of collision security, short prefixes such as \(n = 32\)
-  and \(n = 64\) are practical, and \(n \ge 128\) is the example of a
-  length that is still large.%
-}
+\begin{frame}{A collision, and what it costs}
+  A collision is two different inputs with the same prefix:
+  \[
+    x \neq x' \qquad\text{and}\qquad \Hn(x) = \Hn(x').
+  \]
+  \begin{itemize}
+    \item The generic attack is the birthday attack. Its cost is \(O(2^{n/2})\).
+    \item Truncation leaves at most \(n/2\) bits of collision security.
+    \item Full SHA-256 has \(n = 256\), so the same bound is \(2^{128}\).
+    \item A search that only matches \(2^{n/2}\) is already enough. Beating it would be an attack on SHA-256 itself.
+  \end{itemize}
+\end{frame}
 
-\subsection{The signature on a prefix}
-\prompt{%
-  Say what the verifier computes and what it compares.
-  Then say what follows when two messages share a prefix:
-  a signature on one verifies on the other.%
-}
-
-\section{Alice's investigation}
-\prompt{%
-  Summarize the poisoned-message setting you are replaying.
-  Two documents that a reader accepts as different messages share one
-  digest, so the signature transfers.
-  Cite Daum and Lucks, and point at the published MD5 pair only as the
-  historical case.
-  Keep this section to the analogy.
-  The measurements belong in Section~\ref{sec:results}.%
-}
-
-\section{Collision search}
-\label{sec:search}
-\prompt{%
-  Open with the search problem: sample inputs until two of them share an
-  \(n\)-bit prefix.
-  Then one subsection per approach you actually ran.
-  Delete the subsections you did not use, and add one for each further
-  idea (distinguished points, a different cycle finder, a GPU search,
-  and so on).%
-}
-
-\subsection{Hash table}
-\prompt{%
-  Describe the key you store, the value you store beside it, and the test
-  that declares a collision.
-  Give the memory per entry and the \(n\) at which the table stopped
-  fitting.
-  This is the memory-heavy end of the tradeoff.%
-}
-
-\subsection{Floyd's cycle-finding algorithm}
-\prompt{%
-  Describe the function you iterate, the two pointers, and the extra work
-  you do after a meeting point to recover a colliding pair.
-  State the memory, which should stay essentially constant, and the number
-  of hashes relative to \(2^{n/2}\).%
-}
-
-\subsection{Time--memory tradeoff}
-\prompt{%
-  Put the two previous methods on one scale.
-  If you used distinguished points, chains, or another intermediate
-  scheme, specify the parameter that moves memory in one direction and
-  hashing work in the other, and report the settings you tried.%
-}
-
-\subsection{Parallel search}
-\prompt{%
-  Describe how the search was split (processes, threads, or machines),
-  how a worker reported a hit, and how the speed compared with one worker.
-  Note any duplicated work.%
-}
-
-\section{Experiments}
-\label{sec:results}
-
-\subsection{Setup}
-\prompt{%
-  Machine, core count, RAM, language, and hash implementation.
-  State how you timed a run and how you measured memory.
-  Fix the input format (counter, random block, chosen prefix plus a
-  free block) so a reader can reproduce a pair.%
-}
-
-\subsection{Results}
-\prompt{%
-  Fill Table~\ref{tab:results}.
-  One row per \((n, \text{method})\) you finished.
-  The largest \(n\) is the bottom line of the assignment; start at 32
-  and keep every successful length, including the ones that were easy.%
-}
-
-\begin{table}[ht]
-  \centering
-  \caption{Collision searches.
-           Replace the dashes.
-           ``Hashes'' is the number of SHA-256 evaluations.}
-  \label{tab:results}
-  \begin{tabular}{@{}clrrll@{}}
+\begin{frame}{Lecture markers}
+  \begin{center}
+  \begin{tabular}{@{}clll@{}}
     \toprule
-    \(n\) & Method & Hashes & Time & Memory & Prefix \\
+    \(n\) & Birthday cost & Prefix in hex & Reading \\
     \midrule
-    32 & hash table & --- & --- & --- & \texttt{--------} \\
-    32 & Floyd      & --- & --- & --- & \texttt{--------} \\
-    64 &            & --- & --- & --- & \texttt{----------------} \\
-    \midrule
-    \multicolumn{6}{@{}l}{%
-      Largest \(n\) reached: \rule{2.2cm}{0.4pt}\quad
-      method: \rule{3.2cm}{0.4pt}} \\
+    32  & \(2^{16}\)  & 8 digits  & short, practical \\
+    64  & \(2^{32}\)  & 16 digits & short, still a target \\
+    128 & \(2^{64}\)  & 32 digits & the example that stays large \\
+    256 & \(2^{128}\) & 64 digits & full SHA-256 \\
     \bottomrule
   \end{tabular}
-\end{table}
+  \end{center}
+  \vspace{0.4em}
+  We start at \(n = 32\) and move upward. The result that matters is the largest \(n\) we can still finish.
+\end{frame}
 
-\subsection{What limited the next prefix length}
-\prompt{%
-  For the smallest \(n\) you did not finish, say whether you ran out of
-  memory, time, or both, and which method came closest.
-  Compare that wall with \(2^{n/2}\).%
-}
+\begin{frame}{What the signature actually checks}
+  \begin{enumerate}
+    \item The signer signs \(\Hn(x)\), not the other \(256 - n\) bits.
+    \item The verifier hashes the message it received and compares the leading \(n\) bits with the signature.
+    \item If \(x\) and \(x'\) share that prefix, a signature on \(x\) verifies on \(x'\).
+  \end{enumerate}
+  \vspace{0.6em}
+  The signature is only as collision resistant as \(\Hn\).
+\end{frame}
 
-\section{Meaningful messages}
-\prompt{%
-  Leave this section until the lecture that builds a collision into a
-  document a person will actually read.
-  Then describe the two messages, where the free bytes sit, and why a
-  reader sees two different texts while \(\Hn\) stays the same.
-  Attach the files or quote only enough of them to identify the pair.
-  If that lecture has not happened yet, write one sentence saying so
-  and point ahead to the conclusion you can already draw from
-  Section~\ref{sec:results}.%
-}
+\begin{frame}{Alice, as the analogy}
+  \begin{itemize}
+    \item Daum and Lucks published two PostScript files a person reads as different documents.
+    \item One is a letter of recommendation. The other is an order that grants access.
+    \item They share one MD5 digest, \texttt{a25f7f0b29ee0b3968c860738533a4b9}.
+    \item A signature on the letter is a valid signature on the order.
+    \item We cite that pair. We do not recompute MD5. Our search is the same story for a prefix of SHA-256.
+  \end{itemize}
+\end{frame}
 
-\section{Security conclusion}
-\prompt{%
-  Answer the mission directly.
-  For each \(n\) you broke, the signature on \(\Hn\) does not separate
-  the two inputs you found.
-  For the lengths you did not break, give the birthday cost and say
-  whether that cost is still a practical attack or only a theoretical one.
-  Use the lecture's markers: \(n = 32\) and \(n = 64\) are the short
-  prefixes, and \(n \ge 128\) is the example of a prefix that remains
-  large.
-  Close with why the birthday bound, rather than a dedicated SHA-256
-  break, is the attack that decides this question.%
-}
+\begin{frame}{One search, five ways to run it}
+  Sample inputs until two of them share an \(n\)-bit prefix.
+  \begin{center}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Method & What is stored & What grows \\
+    \midrule
+    Hash table & every prefix, and the first message & memory, about \(2^{n/2}\) rows \\
+    Floyd & two pointers & hashes, memory stays flat \\
+    Distinguished points & one state every \(2^{d}\) steps & both, chosen by \(d\) \\
+    Parallel & chosen search, split across processes & wall-clock time \\
+    Meaningful messages & letter serials, then orders & same birthday cost \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+\end{frame}
 
-\section{Conclusion}
-\prompt{%
-  Three or four sentences.
-  Largest \(n\), the method that reached it, the memory--time choice
-  that mattered, and the consequence for the signature.
-  State the meaningful-message attack as done, or as waiting on the
-  later lecture.%
-}
+\begin{frame}{Hash table}
+  \begin{itemize}
+    \item Messages are the decimal counters \texttt{"0"}, \texttt{"1"}, \texttt{"2"}, \ldots
+    \item Store the leading \(n\) bits, and the first message that produced them.
+    \item The first repeated prefix is the collision.
+    \item Memory is one row per new prefix, so about \(2^{n/2}\) rows.
+    \item This is the memory-heavy end of the tradeoff. It is also the method that finishes a short prefix soonest.
+  \end{itemize}
+\end{frame}
 
-\appendix
-\section{Colliding inputs}
-\label{app:pairs}
-\prompt{%
-  For every row of Table~\ref{tab:results}, list the two inputs and the
-  shared prefix.
-  Prefer a path to a file in the repository over a paste of long inputs.%
-}
+\begin{frame}{Hash table, on real SHA-256}
+  \begin{center}
+  \begin{tikzpicture}[scale=0.86, transform shape]
+    \node[tag, anchor=west] at (0,1.05) {SHA-256(\texttt{251})};
+    \node[kept] (keep) at (4.55,1.05) {c75d};
+    \node[plain, anchor=west] (drop) at (5.65,1.05) {3f1f\ldots};
+    \node[tag, below=0.5mm of keep] {kept};
+    \node[tag, below=0.5mm of drop] {dropped};
 
-\begin{verbatim}
-n = 32
-method:
-x  =
-x' =
-Hn =
-\end{verbatim}
+    \node[tag, anchor=west] at (0,-0.45) {leading bits};
+    \node[tag, anchor=west] at (3.05,-0.45) {first message};
 
-\section{Diagrams of the three searches}
-\label{app:diagrams}
+    \node[kept, anchor=west] (p0) at (0,-1.25) {5fec};
+    \node[plain, anchor=west] (m0) at (3.05,-1.25) {0};
+    \node[kept, anchor=west] (p1) at (0,-2.15) {6b86};
+    \node[plain, anchor=west] (m1) at (3.05,-2.15) {1};
+    \node[hit, anchor=west] (pc) at (0,-3.05) {c75d};
+    \node[plain, anchor=west] (m157) at (3.05,-3.05) {157};
 
-Each arrow is one SHA-256 evaluation.
-The next value is the leading bits of that digest, written here in hex.
-Blue is a value placed in a table.
-Orange marks the two inputs of a collision.
-The pictures use a 16-bit prefix so the hex fits on the page.
-At \(n = 32\) the same pictures keep the first eight hex digits.
-
-\begin{figure}[ht]
-  \centering
-  \begin{tikzpicture}
-    \node[tag, anchor=west] at (0,1.15) {SHA-256(\texttt{251})};
-    \node[kept] (keep) at (4.7,1.15) {c75d};
-    \node[plain, anchor=west] (drop) at (5.85,1.15) {3f1f\ldots};
-    \node[tag, below=1mm of keep] {kept};
-    \node[tag, below=1mm of drop] {dropped};
-
-    \node[tag, anchor=west] (h1) at (0,-0.55) {leading bits};
-    \node[tag, anchor=west] (h2) at (3.15,-0.55) {first message};
-
-    \node[kept, anchor=west] (p0) at (0,-1.45) {5fec};
-    \node[plain, anchor=west] (m0) at (3.15,-1.45) {0};
-    \node[kept, anchor=west] (p1) at (0,-2.45) {6b86};
-    \node[plain, anchor=west] (m1) at (3.15,-2.45) {1};
-    \node[hit, anchor=west] (pc) at (0,-3.45) {c75d};
-    \node[plain, anchor=west] (m157) at (3.15,-3.45) {157};
-
-    \node[hit] (m251) at (0.55,-4.75) {251};
+    \node[hit] (m251) at (0.55,-4.2) {251};
     \draw[flow] (m251.north) -- node[tag, right] {same leading bits} (pc.south);
-    \node[tag, below=1mm of m251] {collision};
   \end{tikzpicture}
-  \caption{Hash table, with real SHA-256 prefixes of the decimal counters.
-           Every leading prefix is stored with the first message that
-           produced it.
-           \texttt{0} and \texttt{1} have new prefixes.
-           \texttt{157} is stored under \texttt{c75d}.
-           \texttt{251} produces the same leading digits, so the two
-           messages collide.
-           The digits after \texttt{c75d} differ and are not stored.}
-  \label{fig:hashtable}
-\end{figure}
+  \end{center}
+  \vspace{-0.4em}
+  {\scriptsize Blue is stored. Orange is the collision. Digits after \texttt{c75d} differ, so they are not stored. At \(n = 32\) the same picture keeps eight hex digits.}
+\end{frame}
 
-\begin{figure}[ht]
-  \centering
-  \begin{tikzpicture}
+\begin{frame}{Floyd}
+  \begin{itemize}
+    \item The state is an \(n\)-bit block. Hash it, keep the leading \(n\) bits, and that block is the next state.
+    \item The tortoise takes one step. The hare takes two. They meet on the cycle.
+    \item Walk back to the entrance. The two states that both step onto that entrance are the collision.
+    \item Only the two pointers are kept. Memory stays essentially constant.
+    \item The number of hashes is still on the order of \(2^{n/2}\).
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Floyd, on a short chain}
+  \begin{center}
+  \begin{tikzpicture}[scale=0.92, transform shape]
     \node[plain] (s0) at (0,0) {0};
-    \node[plain] (s1) at (1.8,0) {1};
-    \node[hit] (s2) at (3.6,0) {2};
-    \node[plain] (s3) at (5.7,0.85) {3};
-    \node[plain] (s4) at (7.6,0.85) {4};
-    \node[hit] (s5) at (7.6,-0.95) {5};
-
+    \node[plain] (s1) at (1.7,0) {1};
+    \node[hit] (s2) at (3.4,0) {2};
+    \node[plain] (s3) at (5.4,0.8) {3};
+    \node[plain] (s4) at (7.2,0.8) {4};
+    \node[hit] (s5) at (7.2,-0.85) {5};
     \draw[flow] (s0) -- (s1);
     \draw[flow] (s1) -- (s2);
     \draw[flow] (s2) -- (s3);
     \draw[flow] (s3) -- (s4);
     \draw[flow] (s4) -- (s5);
     \draw[flow] (s5) to[out=180,in=-70] (s3);
-
-    \node[tag, above=1mm of s3] {entrance};
-    \node[tag, below=1mm of s2] {one step to 3};
-    \node[tag, below=1mm of s5] {one step to 3};
+    \node[tag, above=0.4mm of s3] {entrance};
+    \node[tag, below=0.4mm of s2] {one step to 3};
+    \node[tag, below=0.4mm of s5] {one step to 3};
   \end{tikzpicture}
-  \caption{Floyd's algorithm on a short stand-in chain.
-           Each arrow hashes the state and keeps the leading bits;
-           those bits are the next state.
-           The tortoise follows one arrow at a time and the hare follows
-           two, until they meet on the cycle and walk back to the entrance
-           \texttt{3}.
-           States \texttt{2} and \texttt{5} both step onto \texttt{3},
-           so they are the collision.
-           Only the two pointers are kept.
-           No table of states is written.}
-  \label{fig:floyd}
-\end{figure}
+  \end{center}
+  Each arrow is one SHA-256 step. States \texttt{2} and \texttt{5} are the collision. Nothing in this picture is written to a table.
+\end{frame}
 
-\begin{figure}[ht]
-  \centering
-  \begin{tikzpicture}
-    \node[hit] (a) at (0,2.05) {c251};
-    \node[hit] (b) at (2.5,2.05) {de75};
-    \node[plain] (m) at (1.25,0) {fbfe};
-    \node[plain] (c) at (4.15,0) {cc55};
-    \node[plain] (d) at (7.05,0) {cc9b};
-    \node[kept] (e) at (10.05,0) {fca0};
+\begin{frame}{Distinguished points}
+  \begin{itemize}
+    \item Same step as Floyd: hash the state, keep the leading \(n\) bits.
+    \item Store a state only when its lowest \(d\) bits are zero. We use \(d = n/4\).
+    \item For \(d = 4\), that test is ``the last hex digit is \texttt{0}''.
+    \item The table holds the endpoint and the chain start. Intermediate states are dropped.
+    \item A second chain with the same endpoint is recomputed from both starts. The two messages that first meet are the collision.
+  \end{itemize}
+\end{frame}
 
+\begin{frame}{Distinguished points, on real SHA-256}
+  \begin{center}
+  \begin{tikzpicture}[scale=0.78, transform shape]
+    \node[hit] (a) at (0,1.7) {c251};
+    \node[hit] (b) at (2.3,1.7) {de75};
+    \node[plain] (m) at (1.15,0) {fbfe};
+    \node[plain] (c) at (3.7,0) {cc55};
+    \node[plain] (d) at (6.25,0) {cc9b};
+    \node[kept] (e) at (8.9,0) {fca0};
     \draw[flow] (a) -- (m);
     \draw[flow] (b) -- (m);
     \draw[flow] (m) -- (c);
     \draw[flow] (c) -- (d);
     \draw[flow] (d) -- (e);
-
-    \node[tag, below=1mm of m] {ends in \texttt{e}};
-    \node[tag, below=1mm of c] {ends in \texttt{5}};
-    \node[tag, below=1mm of d] {ends in \texttt{b}};
-    \node[tag, below=1mm of e] {ends in \texttt{0}, stored};
+    \node[tag, below=0.4mm of m] {ends in \texttt{e}};
+    \node[tag, below=0.4mm of c] {ends in \texttt{5}};
+    \node[tag, below=0.4mm of d] {ends in \texttt{b}};
+    \node[tag, below=0.4mm of e] {ends in \texttt{0}, stored};
   \end{tikzpicture}
-  \caption{Distinguished points on a real SHA-256 chain, with a 16-bit
-           prefix.
-           \texttt{c251} and \texttt{de75} both hash to the leading bits
-           \texttt{fbfe}.
-           That pair is the collision.
-           The chain continues, and a state is stored only when it ends
-           in the hex digit \texttt{0}, here the lowest four bits
-           \texttt{0000}.
-           \texttt{fbfe}, \texttt{cc55}, and \texttt{cc9b} fail that test.
-           The chain stops at \texttt{fca0}, which is the single table entry.
-           A second chain that ends at the same \texttt{fca0} is walked
-           again to recover \texttt{c251} and \texttt{de75}.}
-  \label{fig:distinguished}
-\end{figure}
+  \end{center}
+  \vspace{-0.3em}
+  {\scriptsize \(n = 16\), \(d = 4\). \texttt{c251} and \texttt{de75} both step to \texttt{fbfe}. Only \texttt{fca0} is stored. The chain stops there.}
+\end{frame}
 
-\addcontentsline{toc}{section}{References}
-\begin{thebibliography}{9}
+\begin{frame}{Time against memory}
+  \begin{itemize}
+    \item Hash table: spend memory, detect the repeat as soon as it appears.
+    \item Floyd: spend hashes, keep two pointers.
+    \item Distinguished points sit between them. Larger \(d\) means a longer walk and a smaller table, about \(2^{n/2 - d}\) endpoints.
+    \item Menu 4 asks which algorithm to run on several processes.
+    \item The hash table and the meaningful messages split the counter, and the parent merges prefixes. Floyd starts one walk per process. Distinguished points split the chains.
+  \end{itemize}
+\end{frame}
 
-\bibitem{daum-lucks}
-Magnus Daum and Stefan Lucks.
-\newblock Hash Collisions (The Poisoned Message Attack).
-\newblock \url{https://www.sos.cs.ru.nl/applications/courses/security2015/md5collisions/index.html}.
+\begin{frame}{Meaningful messages}
+  \begin{itemize}
+    \item The two texts stay fixed. Only an eight-digit serial at the end changes.
+    \item One text is a letter of recommendation. The other is an order that grants access.
+    \item Letter serials fill a table of prefixes. The first matching order serial is the collision.
+    \item A reader sees two different sentences. \(\Hn\) sees one prefix.
+    \item This is the birthday construction with a free serial. It is not the MD5 PostScript construction.
+  \end{itemize}
+\end{frame}
 
-\bibitem{fips180-4}
-National Institute of Standards and Technology.
-\newblock \emph{Secure Hash Standard (SHS)}, FIPS PUB 180-4, 2015.
+\begin{frame}{What ``Verified collision'' means}
+  After a search returns, the program hashes both messages again and checks three things.
+  \begin{enumerate}
+    \item The two messages are different.
+    \item Their leading \(n\) bits match each other.
+    \item Those bits match the prefix the search stored.
+  \end{enumerate}
+  \vspace{0.5em}
+  The check is a fresh SHA-256 of each message. It does not trust the table.
+\end{frame}
 
-% Add a bibitem for each paper or tool you actually used, for example
-% the hash library and any write-up of Floyd's algorithm you followed.
+\begin{frame}{What to take from a run}
+  For every finished \((n, \text{method})\), keep four numbers and the pair.
+  \begin{center}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    Record & Why it is on the slide \\
+    \midrule
+    Hashes & compare with \(2^{n/2}\) \\
+    Time & the practical cost \\
+    Peak memory & which side of the tradeoff this method is on \\
+    Shared prefix & the value the signature would accept \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  \vspace{0.4em}
+  Same \(n\), different methods: the hash table should use much more memory, and Floyd should stay near a constant.
+\end{frame}
 
-\end{thebibliography}
+\begin{frame}{How far the prefix can go}
+  \begin{itemize}
+    \item \(n = 32\): about \(2^{16}\) hashes. A hash table fits and finishes.
+    \item \(n = 48\): about \(2^{24}\) hashes. The hash table is large. This is a plausible largest length for that method.
+    \item \(n = 64\): about \(2^{32}\) hashes and, for the hash table, about four billion rows. Memory runs out before a hit.
+    \item Floyd still stores two pointers at \(n = 64\). Time is then the wall, not RAM.
+    \item \(n \ge 128\): birthday cost at least \(2^{64}\). That is the lecture's example of a prefix that remains large.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{The security answer}
+  \begin{itemize}
+    \item For every \(n\) we break, a signature on \(\Hn\) does not separate the two inputs.
+    \item \(n = 32\) and \(n = 64\) are the short prefixes. Their costs, \(2^{16}\) and \(2^{32}\), are the practical attack.
+    \item \(n \ge 128\) is still only a theoretical birthday attack on this machine.
+    \item The deciding attack is the birthday bound on the prefix, not a dedicated break of SHA-256.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Close}
+  \begin{itemize}
+    \item Truncation cuts collision security from 128 bits to \(n/2\) bits.
+    \item The hash table buys speed with memory. Floyd buys a flat memory cost with more hashing. Distinguished points choose a point in between. Parallel runs any of those searches on several processes.
+    \item The largest \(n\) we finish is the point where this signature stops being a practical protection.
+    \item Two readable messages with one prefix show why that matters to a person, not only to a counter.
+  \end{itemize}
+\end{frame}
+
+\appendix
+
+\begin{frame}{Backup: one hash-table pair at \(n = 32\)}
+  Messages are the decimal strings \texttt{95303} and \texttt{69235}.
+  \begin{itemize}
+    \item Shared prefix: \texttt{c11eb5e6}
+    \item Hashes: 95\,304
+    \item Birthday scale: \(2^{16} = 65\,536\)
+  \end{itemize}
+  \vspace{0.4em}
+  {\scriptsize Use the prefix, time, and memory printed by the run you present. Replace this pair if a later run is the one you keep.}
+\end{frame}
+
+\begin{frame}{Backup: sources}
+  \begin{itemize}
+    \item Magnus Daum and Stefan Lucks, \emph{Hash Collisions (The Poisoned Message Attack)}.\\
+          \url{https://www.sos.cs.ru.nl/applications/courses/security2015/md5collisions/index.html}
+    \item NIST, \emph{Secure Hash Standard (SHS)}, FIPS PUB 180-4, 2015.
+    \item Code: \texttt{code/main.py}. Choice 4 asks which of the four searches to run on 4 processes. The prefix length must be a multiple of 8.
+  \end{itemize}
+\end{frame}
 
 \end{document}
