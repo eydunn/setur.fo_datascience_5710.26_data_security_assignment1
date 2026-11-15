@@ -173,9 +173,11 @@ def parallel_floyd(n: int, workers: int) -> Collision:
         pool.shutdown(wait=False, cancel_futures=True)
 
 
-def parallel_distinguished(n: int, workers: int) -> Collision:
+def parallel_distinguished(n: int, workers: int,
+                           distinguish_bits: int | None = None) -> Collision:
     """Split the chains. The parent merges the distinguished endpoints."""
-    distinguish_bits = max(1, min(n // 4, n - 1))
+    if distinguish_bits is None:
+        distinguish_bits = max(1, min(n // 4, n - 1))
     per_round = 4 * max((1 << (n // 2)) >> distinguish_bits, 1)
     max_steps = 32 * (1 << distinguish_bits)
     stored = {}

@@ -8,7 +8,8 @@ Everything goes to results/report/, each figure as PNG and PDF:
     hashes_vs_n        median hashes per configuration, and 2^(n/2)
     hashes_normalized  hashes / 2^(n/2): each method's constant factor
     time_vs_n          median time, failed runs as crosses, fitted trend
-    memory_vs_n        median peak memory, and the interpreter's baseline
+    memory_vs_n        median peak memory the search allocated (tracemalloc),
+                       and the interpreter's resident memory for scale
     tradeoff           time against memory at one n
     speedup            parallel speedup against the number of workers
     summary.csv        one line per configuration and n, with an example pair
@@ -202,8 +203,8 @@ def fig_time(ok, failed, colors, outdir, ahead=8):
 
 
 def fig_memory(ok, colors, outdir):
-    fig, ax = new_axes("Peak memory of the search process", "n (prefix bits)",
-                       "peak resident memory")
+    fig, ax = new_axes("Peak memory allocated by the search", "n (prefix bits)",
+                       "peak traced memory (tracemalloc)")
     ax.set_yscale("log", base=2)
     baselines = [r["baseline_bytes"] for by_n in ok.values()
                  for rows in by_n.values() for r in rows if r["baseline_bytes"]]
@@ -211,7 +212,7 @@ def fig_memory(ok, colors, outdir):
         plot_band(ax, *series(by_n, "peak_bytes"), colors[config], config)
     if baselines:
         ax.axhline(statistics.median(baselines), color="gray", linestyle="--",
-                   linewidth=1, label="interpreter baseline")
+                   linewidth=1, label="interpreter resident memory (not traced)")
     ax.yaxis.set_major_formatter(FuncFormatter(human_bytes))
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.legend(fontsize=8)

@@ -1,9 +1,11 @@
 """Run many searches, one process each, and append one CSV row per run.
 
-    python run_experiments.py --methods hash_table floyd --n 32 48 --step 2 --trials 10
+    python run_experiments.py --methods hash_table floyd --n 16 48 --step 8 --trials 10
 
-Every run is a fresh `python main.py ... --json`, so each one starts with a
-clean memory peak and can be stopped at --timeout. A row is appended to the
+Every run is a fresh `python cli.py ... --json`, so each one starts with a
+clean memory peak and can be stopped at --timeout. n follows the menu's
+rule: a multiple of 8, from 8 to 256, so --n takes multiples of 8 and
+--step is a multiple of 8. A row is appended to the
 CSV as soon as its run ends, so an interrupted campaign keeps what it
 finished, and running the same command again skips the runs already there.
 
@@ -20,6 +22,9 @@ configuration per value:
         --distinguish-bits 4 6 8 10 12 --trials 10
     python run_experiments.py --methods parallel --n 48 48 \\
         --distinguish-bits 12 --workers 1 2 4 8 --trials 5
+
+The searches are deterministic: every trial of a configuration hashes the
+same messages, so the trials differ only in time and memory.
 
 --memory-limit-gb caps each run's address space (Linux), so the hash table
 fails with MemoryError instead of pushing the machine into swap.
@@ -46,7 +51,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-MAIN = HERE / "main.py"
+MAIN = HERE / "cli.py"
 METHODS = ["hash_table", "floyd", "distinguished", "parallel", "meaningful"]
 D_METHODS = ("distinguished", "parallel")
 
@@ -292,10 +297,14 @@ def main():
     parser.add_argument("--methods", nargs="+", choices=METHODS, required=True)
     parser.add_argument("--n", nargs=2, type=int, default=[32, 40],
                         metavar=("FIRST", "LAST"),
-                        help="range of n, both ends included (default 32 40)")
-    parser.add_argument("--step", type=int, default=2, help="step in n (default 2)")
+                        help="range of n, both ends included, multiples of 8 "
+                             "from 8 to 256 (default 32 40)")
+    parser.add_argument("--step", type=int, default=8,
+                        help="step in n, a multiple of 8 (default 8)")
     parser.add_argument("--trials", type=int, default=5,
-                        help="runs per configuration and n, seeds 0, 1, ... (default 5)")
+                        help="runs per configuration and n, seeds 0, 1, ...; "
+                             "the searches are deterministic, so trials differ "
+                             "only in time and memory (default 5)")
     parser.add_argument("--seed-base", type=int, default=0,
                         help="first seed (default 0)")
     parser.add_argument("--timeout", type=float, default=600,
@@ -308,6 +317,11 @@ def main():
                         help="worker counts to try for parallel")
     parser.add_argument("--out", type=Path, default=HERE / "results" / "results.csv")
     args = parser.parse_args()
+    first, last = args.n
+    if first % 8 or last % 8 or not 8 <= first <= last <= 256:
+        parser.error("--n takes two multiples of 8 from 8 to 256, FIRST <= LAST")
+    if args.step < 8 or args.step % 8:
+        parser.error("--step must be a positive multiple of 8")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     info = machine_info()
