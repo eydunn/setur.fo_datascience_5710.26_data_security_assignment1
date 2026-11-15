@@ -68,3 +68,11 @@ def test_check_n_follows_the_menu_rule():
 def test_run_search_finds_verified_pair_for_each_method():
     for method in METHODS:
         assert is_verified(run_search(method, 16)), method
+
+
+def test_seed_changes_the_search_but_stays_deterministic():
+    for method in METHODS:
+        runs = [run_search(method, 16, seed=s) for s in (0, 1, 2)]
+        assert all(is_verified(r) for r in runs), method
+        assert len({(r.message, r.hashes) for r in runs}) > 1, method
+        assert run_search(method, 16, seed=1).message == runs[1].message, method

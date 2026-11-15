@@ -18,11 +18,12 @@ def default_distinguish_bits(n: int) -> int:
     return max(1, min(n // 4, n - 1))
 
 
-def chain_start(index: int, n: int, distinguish_bits: int) -> int:
-    """A start state whose low bits are not already zero."""
+def chain_start(index: int, n: int, distinguish_bits: int, seed: int = 0) -> int:
+    """A start state whose low bits are not already zero. The seed moves
+    the whole run of start states; seed 0 is the unshifted run."""
     mask = (1 << n) - 1
     low = (1 << distinguish_bits) - 1
-    start = (index * 0x9E3779B1 + 1) & mask
+    start = ((index + seed * 0x632BE5AB) * 0x9E3779B1 + 1) & mask
     if (start & low) == 0:
         start = (start + 1) & mask
     return start
@@ -88,7 +89,7 @@ def _as_collision(n, method, left, right, hashes, elapsed, peak) -> Collision:
     )
 
 
-def distinguished(n: int, distinguish_bits: int) -> Collision:
+def distinguished(n: int, distinguish_bits: int, seed: int = 0) -> Collision:
     """Keep a state only when it is distinguished."""
     if distinguish_bits < 1 or distinguish_bits >= n:
         raise ValueError(f"distinguish bits must be from 1 to {n - 1}")
@@ -103,7 +104,7 @@ def distinguished(n: int, distinguish_bits: int) -> Collision:
     for round_index in range(4):
         first = round_index * per_round
         for index in range(first, first + per_round):
-            start = chain_start(index, n, distinguish_bits)
+            start = chain_start(index, n, distinguish_bits, seed)
             hit = walk_to_distinguished(n, start, distinguish_bits, max_steps)
             if hit is None:
                 continue

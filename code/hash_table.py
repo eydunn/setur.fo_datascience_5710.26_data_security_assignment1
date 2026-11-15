@@ -7,12 +7,13 @@ from collision import Collision
 from truncate import sha256, truncate
 
 
-def hash_table(n: int) -> Collision:
-    """Remember every prefix that has been seen."""
-    
+def hash_table(n: int, seed: int = 0) -> Collision:
+    """Remember every prefix that has been seen. The seed picks which
+    counters are hashed: seed * 2^40 up. Seed 0 counts from 0."""
+
     seen = {}
     hashes = 0
-    i = 0
+    i = seed << 40
     tracemalloc.start()
     start_time = time.perf_counter()
     while True:

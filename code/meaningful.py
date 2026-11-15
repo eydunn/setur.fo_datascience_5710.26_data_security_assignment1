@@ -19,20 +19,23 @@ def _with_serial(template: bytes, serial: int) -> bytes:
     return template + f"{serial:08d}".encode("ascii")
 
 
-def meaningful(n: int) -> Collision:
-    """Two readable messages, one free block each, one shared prefix."""
+def meaningful(n: int, seed: int = 0) -> Collision:
+    """Two readable messages, one free block each, one shared prefix.
+    The seed moves the serials up by seed * 2^32."""
     width = 3 * (1 << (n // 2))
     letters = {}
     hashes = 0
     tracemalloc.start()
     started = time.perf_counter()
 
-    for serial in range(width):
+    first = seed << 32
+    for serial in range(first, first + width):
         message = _with_serial(LETTER, serial)
         letters.setdefault(truncate(sha256(message), n), serial)
         hashes += 1
 
-    for serial in range(width):
+    first = seed << 32
+    for serial in range(first, first + width):
         order = _with_serial(ORDER, serial)
         prefix = truncate(sha256(order), n)
         hashes += 1

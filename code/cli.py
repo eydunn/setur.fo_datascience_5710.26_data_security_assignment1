@@ -12,8 +12,8 @@ n follows the menu's rule: a multiple of 8, from 8 to 256.
 parallel splits distinguished-point chains, the method the runner compares
 against distinguished with the same d.
 
-The searches are deterministic. --seed is accepted and recorded so the
-runner can number its trials, but it does not change the search.
+Each search is deterministic for a given --seed (default 0). The seed
+moves the search to a different part of the space, so trials differ.
 """
 
 import argparse
@@ -49,8 +49,9 @@ def main() -> None:
                         help="prefix length in bits, a multiple of 8 from 8 "
                              "to 256 (default 32)")
     parser.add_argument("--seed", type=int,
-                        help="trial number; recorded only, the searches are "
-                             "deterministic")
+                        default=0,
+                        help="trial number; picks where the search starts "
+                             "(default 0)")
     parser.add_argument("--distinguish-bits", type=int,
                         help="d for distinguished and parallel (default n // 4)")
     parser.add_argument("--workers", type=int,
@@ -75,7 +76,8 @@ def main() -> None:
 
     baseline = peak_rss_bytes()  # interpreter and imports, before the search
     try:
-        found = run_search(args.method, args.n, d, workers or DEFAULT_WORKERS)
+        found = run_search(args.method, args.n, d, workers or DEFAULT_WORKERS,
+                           args.seed)
     except MemoryError:
         if not args.json:
             raise

@@ -89,13 +89,13 @@ def _floyd_seed(task):
 
 
 def _walk_many(task):
-    n, d, first, count, max_steps = task
+    n, d, first, count, max_steps, seed = task
     if stop_signal.is_set():
         return _reply([], 0)
     chains = []
     hashes = 0
     for index in range(first, first + count):
-        start = chain_start(index, n, d)
+        start = chain_start(index, n, d, seed)
         hit = walk_to_distinguished(n, start, d, max_steps)
         if hit is None:
             hashes += max_steps  # gave up on this chain, but the hashes were done
@@ -188,12 +188,13 @@ def parallel_floyd(n: int, workers: int) -> Collision:
 
 
 def parallel_distinguished(n: int, workers: int,
-                           distinguish_bits: int | None = None) -> Collision:
+                           distinguish_bits: int | None = None,
+                           seed: int = 0) -> Collision:
     """Workers walk batches of chains. The parent merges the distinguished endpoints."""
     d = distinguish_bits if distinguish_bits is not None else default_distinguish_bits(n)
     max_steps = 32 * 2 ** d
     number_of_chains = 8 * 2 ** (n // 2 - d)  # far more than a collision needs
-    tasks = [(n, d, first, CHAINS_PER_TASK, max_steps)
+    tasks = [(n, d, first, CHAINS_PER_TASK, max_steps, seed)
              for first in range(0, number_of_chains, CHAINS_PER_TASK)]
     endpoints = {}       # endpoint -> (start, length) of the first chain that reached it
     total_hashes = 0

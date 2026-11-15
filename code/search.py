@@ -23,14 +23,15 @@ def check_n(n: int) -> str | None:
 
 
 def run_search(method: str, n: int, distinguish_bits: int | None = None,
-               workers: int = DEFAULT_WORKERS) -> Collision:
-    """Run one method. parallel splits distinguished-point chains."""
+               workers: int = DEFAULT_WORKERS, seed: int = 0) -> Collision:
+    """Run one method. parallel splits distinguished-point chains.
+    Different seeds search different parts of the space."""
     if method == "hash_table":
-        return hash_table(n)
+        return hash_table(n, seed)
     if method == "floyd":
-        return floyd(n)
+        return floyd(n, seed)
     if method == "distinguished":
-        return distinguished(n, distinguish_bits or default_distinguish_bits(n))
+        return distinguished(n, distinguish_bits or default_distinguish_bits(n), seed)
     if method == "parallel":
-        return parallel_distinguished(n, workers, distinguish_bits)
-    return meaningful(n)
+        return parallel_distinguished(n, workers, distinguish_bits, seed)
+    return meaningful(n, seed)

@@ -62,8 +62,14 @@ def _cycle_pair(step, start, step_limit):
     return tail, cycle
 
 
-def floyd(n: int) -> Collision:
-    """Walk n-bit states. Each step hashes the state and keeps the leading n bits."""
+def start_state(n: int, seed: int, attempt: int = 0) -> int:
+    """Where a walk starts. Seed 0 starts at the attempt number itself."""
+    return (seed * 0x9E3779B1 + attempt) & ((1 << n) - 1)
+
+
+def floyd(n: int, seed: int = 0) -> Collision:
+    """Walk n-bit states. Each step hashes the state and keeps the leading n bits.
+    The seed moves the start states."""
     width = n // 8
     hashes = 0
     step_limit = max(64 * (1 << (n // 2)), 1000)
@@ -78,8 +84,8 @@ def floyd(n: int) -> Collision:
         return truncate(digest, n)
 
     pair = None
-    for seed in range(16):
-        pair = _cycle_pair(step, seed, step_limit)
+    for attempt in range(16):
+        pair = _cycle_pair(step, start_state(n, seed, attempt), step_limit)
         if pair is not None:
             break
     elapsed = time.perf_counter() - started
