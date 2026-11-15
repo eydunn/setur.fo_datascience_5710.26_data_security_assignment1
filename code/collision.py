@@ -26,13 +26,12 @@ def _human_bytes(b) -> str:
     return f"{b:.1f} {units[i]}"
 
 
-def show(found: Collision) -> None:
-    """Print the pair, the shared prefix, and the cost of finding it."""
+def problems_with(found: Collision) -> list[str]:
+    """Recompute both prefixes instead of trusting the search. Returns what
+    is wrong with the pair; an empty list means it is a verified collision."""
     n = found.n
-    d1 = hashlib.sha256(found.message).digest()
-    d2 = hashlib.sha256(found.other).digest()
-    p1 = int.from_bytes(d1, "big") >> (256 - n)
-    p2 = int.from_bytes(d2, "big") >> (256 - n)
+    p1 = int.from_bytes(hashlib.sha256(found.message).digest(), "big") >> (256 - n)
+    p2 = int.from_bytes(hashlib.sha256(found.other).digest(), "big") >> (256 - n)
 
     problems = []
     if found.message == found.other:
@@ -41,6 +40,19 @@ def show(found: Collision) -> None:
         problems.append("the recomputed prefixes differ")
     elif p1 != found.prefix:
         problems.append("the stored prefix does not match the recomputed one")
+    return problems
+
+
+def is_verified(found: Collision) -> bool:
+    return not problems_with(found)
+
+
+def show(found: Collision) -> None:
+    """Print the pair, the shared prefix, and the cost of finding it."""
+    n = found.n
+    d1 = hashlib.sha256(found.message).digest()
+    d2 = hashlib.sha256(found.other).digest()
+    problems = problems_with(found)
 
     print(f"=== {found.method}, n = {n} ===")
     print(f"message  {found.message.hex()}")

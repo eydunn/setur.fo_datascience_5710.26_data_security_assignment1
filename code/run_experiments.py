@@ -50,10 +50,11 @@ import timeit
 from datetime import datetime, timezone
 from pathlib import Path
 
+from distinguished import default_distinguish_bits
+from search import D_METHODS, METHODS, check_n
+
 HERE = Path(__file__).resolve().parent
 MAIN = HERE / "cli.py"
-METHODS = ["hash_table", "floyd", "distinguished", "parallel", "meaningful"]
-D_METHODS = ("distinguished", "parallel")
 
 FIELDS = ["timestamp", "config", "method", "n", "seed", "distinguish_bits",
           "workers", "status", "hashes", "seconds", "peak_bytes",
@@ -318,7 +319,7 @@ def main():
     parser.add_argument("--out", type=Path, default=HERE / "results" / "results.csv")
     args = parser.parse_args()
     first, last = args.n
-    if first % 8 or last % 8 or not 8 <= first <= last <= 256:
+    if check_n(first) or check_n(last) or first > last:
         parser.error("--n takes two multiples of 8 from 8 to 256, FIRST <= LAST")
     if args.step < 8 or args.step % 8:
         parser.error("--step must be a positive multiple of 8")
@@ -355,7 +356,7 @@ def main():
                         "workers": cfg["workers"],
                     }
                     if cfg["method"] in D_METHODS and row["distinguish_bits"] is None:
-                        row["distinguish_bits"] = n // 4
+                        row["distinguish_bits"] = default_distinguish_bits(n)
                     row.update(run_one(cfg, n, seed, args))
                     append(args.out, row)
                     report(row)

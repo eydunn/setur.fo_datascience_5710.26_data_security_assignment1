@@ -17,28 +17,13 @@ runner can number its trials, but it does not change the search.
 """
 
 import argparse
-import hashlib
 import json
 import multiprocessing
 import sys
 
-from collision import Collision, show
-from distinguished import distinguished
-from floyd import floyd
-from hash_table import hash_table
-from meaningful import meaningful
-from parallel import parallel_distinguished
-
-METHODS = ["hash_table", "floyd", "distinguished", "parallel", "meaningful"]
-
-
-def check_n(n: int) -> str | None:
-    """The menu's rule for n. Returns what is wrong, or None."""
-    if n % 8 != 0:
-        return "n must be a multiple of 8"
-    if not 8 <= n <= 256:
-        return "n must be from 8 to 256"
-    return None
+from collision import is_verified, show
+from distinguished import default_distinguish_bits
+from search import D_METHODS, DEFAULT_WORKERS, METHODS, check_n, run_search
 
 
 def peak_rss_bytes(children: bool = False):
@@ -54,28 +39,6 @@ def peak_rss_bytes(children: bool = False):
         return None
     # Linux reports KiB, macOS reports bytes.
     return peak if sys.platform == "darwin" else peak * 1024
-
-
-def is_verified(found: Collision) -> bool:
-    """Recompute both prefixes instead of trusting the search."""
-    def prefix(message):
-        digest = hashlib.sha256(message).digest()
-        return int.from_bytes(digest, "big") >> (256 - found.n)
-
-    return (found.message != found.other
-            and prefix(found.message) == prefix(found.other) == found.prefix)
-
-
-def run_search(method, n, distinguish_bits, workers) -> Collision:
-    if method == "hash_table":
-        return hash_table(n)
-    if method == "floyd":
-        return floyd(n)
-    if method == "distinguished":
-        return distinguished(n, distinguish_bits)
-    if method == "parallel":
-        return parallel_distinguished(n, workers, distinguish_bits)
-    return meaningful(n)
 
 
 def main() -> None:
@@ -100,19 +63,19 @@ def main() -> None:
     if problem:
         parser.error(problem)
     d = None
-    if args.method in ("distinguished", "parallel"):
-        d = args.distinguish_bits if args.distinguish_bits is not None else args.n // 4
+    if args.method in D_METHODS:
+        d = args.distinguish_bits if args.distinguish_bits is not None else default_distinguish_bits(args.n)
         if not 1 <= d < args.n:
             parser.error(f"distinguish bits must be from 1 to {args.n - 1}")
     workers = None
     if args.method == "parallel":
-        workers = args.workers if args.workers is not None else 4
+        workers = args.workers if args.workers is not None else DEFAULT_WORKERS
         if workers < 1:
             parser.error("workers must be at least 1")
 
     baseline = peak_rss_bytes()  # interpreter and imports, before the search
     try:
-        found = run_search(args.method, args.n, d, workers)
+        found = run_search(args.method, args.n, d, workers or DEFAULT_WORKERS)
     except MemoryError:
         if not args.json:
             raise

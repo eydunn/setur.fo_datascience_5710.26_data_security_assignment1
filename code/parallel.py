@@ -12,7 +12,8 @@ import time
 import tracemalloc
 
 from collision import Collision
-from distinguished import chain_start, colliding_states, walk_to_distinguished
+from distinguished import (chain_start, colliding_states, default_distinguish_bits,
+                           walk_to_distinguished)
 from floyd import _cycle_pair
 from meaningful import LETTER, ORDER, _with_serial
 from truncate import sha256, truncate
@@ -189,7 +190,7 @@ def parallel_floyd(n: int, workers: int) -> Collision:
 def parallel_distinguished(n: int, workers: int,
                            distinguish_bits: int | None = None) -> Collision:
     """Workers walk batches of chains. The parent merges the distinguished endpoints."""
-    d = distinguish_bits if distinguish_bits is not None else max(1, min(n // 4, n - 1))
+    d = distinguish_bits if distinguish_bits is not None else default_distinguish_bits(n)
     max_steps = 32 * 2 ** d
     number_of_chains = 8 * 2 ** (n // 2 - d)  # far more than a collision needs
     tasks = [(n, d, first, CHAINS_PER_TASK, max_steps)

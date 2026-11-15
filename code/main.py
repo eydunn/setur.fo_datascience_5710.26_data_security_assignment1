@@ -17,11 +17,8 @@ the shared prefix, the number of hashes, the time, and the memory.
 """
 
 from collision import show
-from distinguished import distinguished
-from floyd import floyd
-from hash_table import hash_table
-from meaningful import meaningful
 from parallel import parallel
+from search import DEFAULT_WORKERS, check_n, run_search
 
 
 def read_n() -> int:
@@ -31,10 +28,9 @@ def read_n() -> int:
         n = int(input_number)
     except ValueError:
         raise SystemExit("n must be an integer")
-    if n % 8 != 0:
-        raise SystemExit("n must be a multiple of 8")
-    if not 8 <= n <= 256:
-        raise SystemExit("n must be from 8 to 256")
+    problem = check_n(n)
+    if problem:
+        raise SystemExit(problem)
     return n
 
 
@@ -67,16 +63,14 @@ def read_parallel_method() -> str:
         print(f"{choice} is outside 1 to 4")
 
 
-def run_search(choice: str, n: int, algorithm: str | None = None):
-    if choice == "1":
-        return hash_table(n)
-    if choice == "2":
-        return floyd(n)
-    if choice == "3":
-        return distinguished(n, n // 4)
+MENU = {"1": "hash_table", "2": "floyd", "3": "distinguished", "5": "meaningful"}
+
+
+def run_choice(choice: str, n: int, algorithm: str | None = None):
+    """The menu can split any of the four algorithms; the CLI only chains."""
     if choice == "4":
-        return parallel(n, workers=4, algorithm=algorithm)
-    return meaningful(n)
+        return parallel(n, workers=DEFAULT_WORKERS, algorithm=algorithm)
+    return run_search(MENU[choice], n)
 
 
 def main() -> None:
@@ -85,7 +79,7 @@ def main() -> None:
         return
     algorithm = read_parallel_method() if choice == "4" else None
     n = read_n()
-    found = run_search(choice, n, algorithm)
+    found = run_choice(choice, n, algorithm)
     if found is None:
         raise SystemExit("that method has no search yet")
     show(found)
