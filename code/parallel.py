@@ -186,9 +186,10 @@ def parallel_floyd(n: int, workers: int) -> Collision:
                    total_hashes, start_time, worker_memory)
 
 
-def parallel_distinguished(n: int, workers: int) -> Collision:
+def parallel_distinguished(n: int, workers: int,
+                           distinguish_bits: int | None = None) -> Collision:
     """Workers walk batches of chains. The parent merges the distinguished endpoints."""
-    d = n // 4
+    d = distinguish_bits if distinguish_bits is not None else max(1, min(n // 4, n - 1))
     max_steps = 32 * 2 ** d
     number_of_chains = 8 * 2 ** (n // 2 - d)  # far more than a collision needs
     tasks = [(n, d, first, CHAINS_PER_TASK, max_steps)
